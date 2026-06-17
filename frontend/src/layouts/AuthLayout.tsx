@@ -1,0 +1,11 @@
+// Use: Layout wrapper for authentication-related pages (Login, Recovery).
+
+import { Outlet } from "react-router-dom";
+
+export function AuthLayout() {
+  return (
+    <main className="auth-shell">
+      <Outlet />
+    </main>
+  );
+}

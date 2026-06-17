@@ -1,0 +1,20 @@
+{
+  "name": "complysense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ComplySense root runner for React, FastAPI API, and FastAPI AI service",
+  "scripts": {
+    "dev": "concurrently -n frontend,backend,ai -c cyan,green,yellow \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:ai\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:ai": "cd backend && python -m uvicorn ai_service.main:app --reload --port 8001",
+    "install:all": "npm install && cd frontend && npm install",
+    "install:python": "cd backend && python -m pip install -r requirements.txt",
+    "lint": "cd frontend && npm run lint",
+    "build": "cd frontend && npm run build",
+    "typecheck": "cd frontend && npm run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

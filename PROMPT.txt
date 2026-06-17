@@ -1,0 +1,162 @@
+You have access to:
+
+* The ComplySense implementation plan
+* The PostgreSQL schema (already deployed on Neon)
+* The user roles document
+
+Read all provided documents before making implementation decisions.
+
+Important instructions:
+
+* This project must use FastAPI and Python exclusively.
+* Do not introduce TypeScript, Node.js, NestJS, Express, or any alternative backend stack.
+* The Neon PostgreSQL schema is the source of truth.
+* Do not redesign, recreate, simplify, or modify the schema.
+* Use the existing schema exactly as provided.
+* The roles document is the source of truth for authorization.
+* Roles are fixed system roles. Do not create custom role functionality.
+* If any previously generated implementation conflicts with this prompt, refactor and update the existing implementation so the codebase conforms to this prompt while remaining compatible with the provided schema, plan, and role definitions.
+
+Your task is to implement the complete Identity and Access Control foundation for ComplySense.
+
+Context:
+
+* Multiple institutions can register and use the platform.
+* Users belong to institutions according to the schema.
+* Users register using email and password.
+* Authentication uses JWT access tokens and refresh tokens.
+* No MFA is required.
+* Password policy is a minimum of 8 characters.
+* Authorization must follow the fixed role model defined in the provided role document.
+* Institution-level isolation must be enforced across the platform.
+
+Implement the following:
+
+AUTHENTICATION
+
+* User registration
+* User login
+* User logout
+* Refresh token flow
+* Refresh token rotation
+* Current authenticated user endpoint
+* Password hashing using a secure industry-standard algorithm
+* Authentication dependencies for protected routes
+* Token validation utilities
+* Token revocation support if supported by the schema
+
+SESSION MANAGEMENT
+
+* JWT access token generation
+* JWT refresh token generation
+* Token expiry handling
+* Refresh token lifecycle management
+* Session security controls
+* Centralized token configuration
+
+AUTHORIZATION
+
+* Implement role-based access control using the provided role definitions
+* Build reusable authorization dependencies
+* Build reusable permission checking utilities
+* Build role guards/decorators/dependencies suitable for FastAPI
+* Ensure future modules can use authorization without duplicating logic
+
+INSTITUTION ISOLATION
+
+Implement organization-level data isolation foundations.
+
+Requirements:
+
+* Every authenticated request must be associated with the user's institution.
+* Institution context should be resolved centrally.
+* Future modules should be able to enforce institution isolation using shared dependencies/utilities.
+* Prevent cross-institution access by design.
+* Do not rely on endpoint developers remembering to implement isolation manually.
+
+USER MANAGEMENT FOUNDATION
+
+Implement foundational user management capabilities:
+
+* User profile retrieval
+* User profile update (if supported by schema)
+* User status handling according to schema
+* User lookup services required for future modules
+
+AUDIT LOGGING
+
+Implement audit logging for authentication and authorization events using the existing schema.
+
+At minimum log:
+
+* user registration
+* login
+* logout
+* failed login attempts
+* refresh token usage
+* password changes
+* account status changes
+* role-related actions
+
+Do not create new audit structures if equivalent structures already exist in the schema.
+
+SECURITY
+
+Implement:
+
+* secure password storage
+* secure token generation
+* environment-driven security configuration
+* authentication error handling
+* authorization error handling
+* request validation
+* response validation
+
+API STRUCTURE
+
+Create clean FastAPI routing and module organization for:
+
+* authentication
+* authorization
+* sessions
+* users
+* security
+
+DOCUMENTATION
+
+Generate documentation covering:
+
+* authentication architecture
+* authorization architecture
+* institution isolation approach
+* token lifecycle
+* API endpoints
+* security decisions
+* extension points for future modules
+
+QUALITY REQUIREMENTS
+
+* Follow FastAPI best practices
+* Follow clean architecture principles
+* Follow modular architecture
+* Use strict typing
+* Remove duplicated logic
+* Reuse existing infrastructure created in previous phases
+* Keep business-module logic out of this implementation
+* Do not create placeholder implementations
+* Do not leave TODO-only functionality
+
+Before completion:
+
+* Verify imports
+* Verify FastAPI application starts successfully
+* Verify routes are registered correctly
+* Verify type checking passes
+* Verify authentication flow is functional
+* Verify authorization flow is functional
+* Verify institution isolation foundation is in place
+* Remove unused code
+
+Expected outcome:
+
+After completion, the repository should contain a production-ready Identity and Access Control foundation that future business modules can directly build upon without requiring auth, RBAC, or institution-isolation redesign.
