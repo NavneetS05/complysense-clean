@@ -10,7 +10,7 @@ from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.core.exceptions import UnauthorizedError
+from app.core.exceptions import UnauthorizedError, LockedError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -23,6 +23,8 @@ from app.repositories.rbac import RbacRepository
 from app.repositories.sessions import SessionRepository
 from app.repositories.users import UserRepository
 from app.schemas.auth import (
+    AssumeRoleRequest,
+    ExitRoleAssumptionResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
@@ -32,11 +34,13 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     TokenRefreshRequest,
     UserContext,
+    ValidateResetTokenResponse,
 )
 from app.services.mail_service import MailService
 
 _MAX_ATTEMPTS = 3
-_BLOCK_MINUTES = 5
+_BLOCK_SECONDS = 5
+
 
 
 class AuthService:
@@ -146,7 +150,7 @@ class AuthService:
             new_count = await self.users.increment_failed_attempts(user_id)
 
             if new_count >= _MAX_ATTEMPTS:
-                blocked_until_dt = datetime.now(UTC) + timedelta(minutes=_BLOCK_MINUTES)
+                blocked_until_dt = datetime.now(UTC) + timedelta(seconds=_BLOCK_SECONDS)
                 await self.users.block_user(user_id, blocked_until=blocked_until_dt)
                 await self.audit.write(
                     institution_id=institution_id,
@@ -401,6 +405,82 @@ class AuthService:
         )
         await self.session.commit()
         return MessageResponse(message="Password has been reset successfully. Please log in.")
+
+    # ------------------------------------------------------------------
+    # VALIDATE RESET TOKEN  (read-only peek — does NOT consume the token)
+    # ------------------------------------------------------------------
+
+    async def validate_reset_token(
+        self, token: str
+    ) -> ValidateResetTokenResponse:
+        """Return whether a password-reset token is valid and its associated email.
+
+        Does NOT mark the token as used — that happens only on /reset-password.
+        Returns valid=False with email=None for any invalid / expired / used token.
+        """
+        row = await self.users.validate_reset_token(token)
+        if not row:
+            return ValidateResetTokenResponse(valid=False, email=None)
+        return ValidateResetTokenResponse(valid=True, email=str(row["email"]))
+
+    # ------------------------------------------------------------------
+    # EXIT ROLE ASSUMPTION
+    # ------------------------------------------------------------------
+
+    async def exit_role_assumption(
+        self, user: UserContext, request: Request
+    ) -> ExitRoleAssumptionResponse:
+        """Reset the session's active_role_id back to the user's primary role.
+
+        If the user is not currently assuming a different role this is a no-op
+        (returns success anyway so the frontend can safely call it on any exit).
+        After the role is reset a fresh token pair is issued so the frontend's
+        JWT immediately reflects the restored primary role without a separate
+        refresh call.
+        """
+        primary_role_id = user.role_id
+        active_role_id = user.active_role_id
+
+        # Update session only when an assumption is actually in place
+        if primary_role_id != active_role_id:
+            await self.sessions.update_role(
+                session_id=user.session_id, active_role_id=primary_role_id
+            )
+
+        # Reload permissions for the restored primary role
+        permissions = await self.rbac.permissions_for_role(primary_role_id)
+        primary_user = await self.users.find_by_id(user.user_id)
+        role_name = str(primary_user["role_name"]) if primary_user else user.role_name
+
+        await self.audit.write(
+            institution_id=user.institution_id,
+            user_id=user.user_id,
+            active_role_id=primary_role_id,
+            action_type="exit_role_assumption",
+            action_details={
+                "previous_assumed_role_id": active_role_id,
+                "restored_role_id": primary_role_id,
+                "ip": _get_ip(request),
+            },
+            ip_address=_get_ip(request),
+        )
+        await self.session.commit()
+
+        restored_context = UserContext(
+            user_id=user.user_id,
+            institution_id=user.institution_id,
+            role_id=primary_role_id,
+            role_name=role_name,
+            active_role_id=primary_role_id,
+            active_role_name=role_name,
+            email=user.email,
+            permissions=permissions,
+            session_id=user.session_id,
+        )
+        return ExitRoleAssumptionResponse(
+            message="Role assumption exited. Primary role restored.",
+            user=restored_context,
+        )
 
     # ------------------------------------------------------------------
     # INTERNAL HELPERS

@@ -1,0 +1,226 @@
+complysense-clean/
+├── .env.example                         # Template for environment variables needed by the main app, AI service, and database connections.
+├── .gitignore                           # Specifies which files and directories Git should ignore (like secrets, build outputs, node_modules, etc.).
+├── .vscode/                             # VS Code workspace settings.
+│   └── settings.json                    # Configuration for workspace settings, code formatters, and lint tools.
+├── package.json                         # Root package configuration enabling concurrently starting frontend, backend, and AI service.
+├── package-lock.json                    # Lockfile for root-level npm dependencies.
+├── schema.sql                           # Central PostgreSQL database schema definition including tables for institutions, users, and audit logs.
+├── grc.md                               # Operational GRC blueprint mapping out 9 roles, dashboard pages, and AI augmentation.
+├── masterplan.md                        # Project architecture masterplan, day-by-day 15-day build plan, and route lists.
+├── PROMPT.txt                           # Detailed security layer requirements, RAG setup rules, and MongoDB Atlas definitions.
+├── README.md                            # Main project overview and setup documentation (currently empty).
+├── backend/                             # Backend application services and AI service logic.
+│   ├── requirements.txt                 # Python dependencies configuration for FastAPI backend and AI microservice.
+│   ├── app/                             # Main FastAPI core application (port 8000).
+│   │   ├── __init__.py                  # Package initialization file for the main backend FastAPI application.
+│   │   ├── config.py                    # App configuration module using Pydantic settings. Reads environment variables from the .env file.
+│   │   ├── database.py                  # Database configuration for SQLAlchemy async engine and session management.
+│   │   ├── events.py                    # Handles FastAPI application lifecycle events (startup and shutdown handlers).
+│   │   ├── jobs.py                      # Defines periodic or asynchronous background task execution jobs.
+│   │   ├── main.py                      # Entry point of the FastAPI backend application. Sets up middlewares, lifespan events, and mounts API routers.
+│   │   ├── mongodb.py                   # MongoDB connection helper using Motor async client for MongoDB Atlas.
+│   │   ├── supabase_client.py           # Initializes and configures the Supabase Storage client integration.
+│   │   ├── core/                        # Core application modules (exceptions, authentication, dependencies).
+│   │   │   ├── deps.py                  # Defines common FastAPI dependencies such as database sessions and current authenticated user retrieval.
+│   │   │   ├── exceptions.py            # Defines custom HTTP exceptions and registers centralized FastAPI exception handlers.
+│   │   │   ├── logging.py               # Configures system-wide logging formats and log levels for the backend.
+│   │   │   ├── permissions.py           # Middleware and dependencies for validating user permissions against required keys.
+│   │   │   └── security.py              # Utility functions for password hashing (bcrypt), verification, and JWT encoding/decoding.
+│   │   ├── domain/                      # Domain logic definitions.
+│   │   │   └── rbac.py                  # Defines the fixed roles, permission keys, and role prefix mappings for the RBAC matrix.
+│   │   ├── repositories/                # Database query abstractions and operations.
+│   │   │   ├── audit.py                 # Repository handling SQL operations for creating and inserting system audit logs.
+│   │   │   ├── rbac.py                  # Repository retrieving user permissions based on active roles from PostgreSQL.
+│   │   │   ├── sessions.py              # Repository managing user sessions and active role assumptions in PostgreSQL.
+│   │   │   └── users.py                 # Repository for querying active user details, creating users, login throttling, password resets.
+│   │   ├── routers/                     # Endpoint controllers for the main application API.
+│   │   │   ├── __init__.py              # Combines and builds the core API router that includes all resource sub-routers.
+│   │   │   ├── assessments.py           # Router handling operations related to compliance assessments.
+│   │   │   ├── audit.py                 # Router for querying and retrieving the central audit trail logs.
+│   │   │   ├── auth.py                  # Router for user authentication endpoints (login, register, logout, refresh, password reset).
+│   │   │   ├── calendar.py              # Router for managing compliance calendar events and deadlines.
+│   │   │   ├── controls.py              # Router managing control assignments and their operational status.
+│   │   │   ├── departments.py           # Router managing academic and administrative departments CRUD.
+│   │   │   ├── evidence.py              # Router for uploading and reviewing evidence files.
+│   │   │   ├── health.py                # Health check router confirming database and service availability.
+│   │   │   ├── incidents.py             # Router managing IT security incident command center, timelines, and reporting.
+│   │   │   ├── institutions.py          # Router for managing tenants (institutions).
+│   │   │   ├── modules.py               # Router managing active system modules.
+│   │   │   ├── notifications.py         # Router retrieving user alerts and notifications.
+│   │   │   ├── policies.py              # Router for policy draft management and comparison.
+│   │   │   ├── rbac.py                  # Router for inspecting active roles and permissions.
+│   │   │   ├── users.py                 # Router managing user creation and lifecycle operations.
+│   │   │   └── vendors.py               # Router managing vendor records and risk assessments.
+│   │   ├── schemas/                     # Validation schemas for API endpoints.
+│   │   │   └── auth.py                  # Pydantic validation schemas for authentication request and response serialization.
+│   │   ├── services/                    # Business logic implementations.
+│   │   │   ├── auth_service.py          # Service encapsulating business logic for user login, registration, logout, and token management.
+│   │   │   └── mail_service.py          # Email delivery service using Gmail SMTP.
+│   │   └── storage/                     # Storage handlers (Supabase or local storage fallbacks).
+│   │       ├── __init__.py              # Initializes file storage provider utilizing Supabase storage with a local fallback.
+│   │       ├── control_library.py       # Handles interactions with the MongoDB Atlas control library documents.
+│   │       ├── documents.py             # Abstractions for managing raw file paths and metadata.
+│   │       └── knowledge_base.py        # Manages knowledge base documents used in RAG and search.
+│   │
+│   ├── migrations/                      # Database migrations folder containing database updates.
+│   │   ├── 001_ai_conversations.sql     # Database migration script that creates the `ai_conversations` table for storing AI chatbot session histories.
+│   │   └── 002_login_throttling.sql     # Database migration script adding login throttling columns to the users table.
+│   │
+│   └── ai_service/                      # AI Microservice (port 8001).
+│       ├── __init__.py                  # Package initialization file for the AI microservice.
+│       ├── config.py                    # AISettings via pydantic-settings.
+│       ├── main.py                      # FastAPI app + lifespan startup (initializes/loads vector store).
+│       ├── agents/                      # AI agents using LangChain templates.
+│       │   ├── __init__.py              # Initializes and exports the LangChain AI agent suite.
+│       │   ├── assessor_agent.py        # AI agent implementing RAG Q&A for the Read-Only Assessor.
+│       │   ├── audit_agent.py           # AI agent providing smart sampling and observation draft writing for Auditors.
+│       │   ├── base.py                  # Abstract base agent setting up LLM, sanitization, prompt assembly, and validation.
+│       │   ├── compliance_agent.py      # AI agent providing compliance alert triage and regulatory change gap analysis.
+│       │   ├── policy_agent.py          # AI agent performing policy conflict detection and executive summary drafting.
+│       │   ├── security_agent.py        # AI agent drafting CERT-In compliance report forms based on incident data.
+│       │   └── vendor_agent.py          # AI agent performing risk and clause checks on uploaded vendor contracts.
+│       ├── pdf/                         # PDF parsing utilities.
+│       │   ├── __init__.py              # Exposes the PDF payload extractor helper.
+│       │   └── extractor.py             # Extracts text/table layouts from vendor contract PDFs (placeholder for pdfplumber/future libs).
+│       ├── prompts/                     # Prompt templates mapping.
+│       │   ├── __init__.py              # Compiles base system prompts, role contexts, and tasks to assemble prompt structures.
+│       │   ├── policy_wizard.py         # Schema defining structured questions and options for policy wizard generation.
+│       │   ├── role_contexts.py         # Set of role-specific context descriptions injected during prompt assembly.
+│       │   └── tasks/                   # Task-specific prompt templates per domain.
+│       │       ├── __init__.py          # Exports domain-specific task prompts.
+│       │       ├── assessor_prompts.py  # Prompt templates specific to the assessor role/chat.
+│       │       ├── audit_prompts.py     # Prompt templates specific to the auditor role (observations, findings).
+│       │       ├── compliance_prompts.py# Prompt templates specific to the compliance officer role (gap analysis, triage).
+│       │       ├── dept_prompts.py      # Prompt templates specific to department reviews (translating control jargon to plain English).
+│       │       ├── digest_prompts.py    # Prompt templates specific to daily/morning digests.
+│       │       ├── policy_prompts.py    # Prompt templates specific to policy review and conflict detection.
+│       │       ├── security_prompts.py  # Prompt templates specific to incident reports (e.g. CERT-In drafting).
+│       │       └── vendor_prompts.py    # Prompt templates specific to vendor risk and SOC2/DPA contract analysis.
+│       ├── rag/                         # RAG retrieval modules.
+│       │   ├── __init__.py              # Initializes the RAG retrieval pipeline modules.
+│       │   ├── loader.py                # Loads regulatory markdown files and chunks them at heading boundaries.
+│       │   ├── retriever.py             # Performs top-k similarity search queries over the persistent FAISS vector store.
+│       │   ├── vectorstore.py           # Builds, persists, and loads the FAISS vector store database.
+│       │   └── knowledge_base/          # Markdown files containing regulatory framework text.
+│       │       └── .gitkeep             # Keep-alive file for git to track the empty folder.
+│       ├── routers/                     # AI microservice endpoints.
+│       │   ├── __init__.py              # Combines and exports AI service routes.
+│       │   ├── admin.py                 # AI endpoints for access anomaly detection and predictive risk heatmap generation.
+│       │   ├── assessor.py              # AI endpoints for Read-Only Assessor RAG chat interface.
+│       │   ├── audit.py                 # AI endpoints for smart evidence sampling and observation drafting.
+│       │   ├── compliance.py            # AI endpoints for compliance triage and regulatory gap analysis.
+│       │   ├── dept.py                  # AI endpoints for plain-English control translation and evidence pre-flight.
+│       │   ├── digest.py                # AI endpoints for generating morning digest updates.
+│       │   ├── policy.py                # AI endpoints for policy conflict detection and executive briefings.
+│       │   ├── security.py              # AI endpoints for drafting CERT-In reports and response checklists.
+│       │   └── vendor.py                # AI endpoints for analyzing vendor contracts.
+│       ├── security/                    # Security guards, sanitizers, and validation checks.
+│       │   ├── __init__.py              # Exposes input sanitization, response validation, and role-based access checks.
+│       │   ├── guards.py                # Maps endpoints to roles allowed to access them.
+│       │   ├── response_validator.py    # Sanitizes responses against jailbreaks and validates framework citations.
+│       │   └── sanitizer.py             # Sanitizes inputs by screening out prompt injection commands.
+│       └── utils/                       # Common AI service utilities.
+│           ├── __init__.py              # Initializes utilities for the AI service.
+│           ├── context_builder.py       # Prepares and summarizes compliance and incident data for secure LLM consumption.
+│           └── token_counter.py         # Helper utility for calculating token usage.
+│
+└── frontend/                            # React + TypeScript + Vite frontend.
+    ├── eslint.config.js                 # ESLint rules and configurations for the React application.
+    ├── index.html                       # HTML markup base template.
+    ├── package.json                     # Frontend package manager file containing dependencies and scripts.
+    ├── package-lock.json                # Lockfile for frontend npm dependencies.
+    ├── tsconfig.json                    # TypeScript configuration file containing compiler rules.
+    ├── vite.config.ts                   # Vite building and dev-server configuration for the React app.
+    └── src/                             # Frontend source code.
+        ├── App.tsx                      # Root component of the React application. Renders the application router.
+        ├── main.tsx                     # Entry point mounting the React app into the DOM.
+        ├── hooks/                       # Custom React hooks.
+        │   └── usePermission.ts         # Custom hook for checking user permissions and roles on the client side.
+        ├── layouts/                     # Layout frames.
+        │   ├── AuthLayout.tsx           # Layout wrapper for authentication-related pages (Login, Recovery).
+        │   └── DashboardLayout.tsx      # Main system dashboard shell containing topbar, sidebar, and notification indicators.
+        ├── lib/                         # Clients and utilities.
+        │   ├── aiApi.ts                 # Axios API client instance targeting the AI microservice.
+        │   ├── api.ts                   # Axios API client instance configured with interceptors for the main backend service.
+        │   └── auth.ts                  # Logic for fetching user profile, logouts, session tokens.
+        ├── pages/                       # Screen and page implementations by role.
+        │   ├── PageShell.tsx            # Reusable wrapper component providing page headers and margin layouts.
+        │   ├── assessor/                # Read-Only Assessor pages.
+        │   │   ├── Chat.tsx             # Conversational RAG Q&A chatbot interface for assessors.
+        │   │   ├── Dashboard.tsx        # High-level compliance readiness charts for read-only assessors.
+        │   │   └── ReportLibrary.tsx    # Library view for searching and downloading finalized audit reports.
+        │   ├── auditor/                 # Auditor pages.
+        │   │   ├── Observations.tsx     # Auditor observation tracking and finding register.
+        │   │   ├── ReportBuilder.tsx    # Drag-and-drop tool to assemble and compile audit reports.
+        │   │   ├── ReportView.tsx       # View screen for compiled PDF audit reports.
+        │   │   └── Workspace.tsx        # Audit workspace for assessing controls, uploaded evidence, and adding findings.
+        │   ├── auth/                    # Auth-related pages.
+        │   │   ├── ForgotPassword.tsx   # Form to trigger password recovery email instructions.
+        │   │   ├── Login.tsx            # Login page capturing user email and password credentials.
+        │   │   └── ResetPassword.tsx    # Form for submitting and resetting user password.
+        │   ├── compliance/              # Compliance Officer pages.
+        │   │   ├── AssessmentRunner.tsx # Assessment question wizard capturing control answers.
+        │   │   ├── Assessments.tsx      # List of active and historical compliance assessments.
+        │   │   ├── ControlDetail.tsx    # Detail view for a single control, assignees, linked evidence, and audit logs.
+        │   │   ├── Controls.tsx         # Kanban board for managing institution control assignments.
+        │   │   ├── Dashboard.tsx        # Dashboard interface for compliance gaps, tasks, and completion metrics.
+        │   │   ├── EvidenceQueue.tsx    # Approval queue for verification of uploaded evidence documents.
+        │   │   ├── Gaps.tsx             # Matrix view of identified compliance gaps sorted by framework.
+        │   │   ├── Notifications.tsx    # Retrieves and displays user-targeted system notifications.
+        │   │   ├── Policies.tsx         # Policy drafting, generation, and approval management list.
+        │   │   └── Tasks.tsx            # Mitigation task board to track action items across departments.
+        │   ├── dept/                    # Department Reviewer pages.
+        │   │   ├── Dashboard.tsx        # Overview of department tasks, evidence status, and local risk level.
+        │   │   ├── Evidence.tsx         # Lists uploaded files and approval history for the department.
+        │   │   ├── SelfAssessment.tsx   # Form for submitting periodic local self-assessments.
+        │   │   ├── TaskWizard.tsx       # Step-by-step help wizard for completing compliance tasks with plain-English instructions.
+        │   │   └── Tasks.tsx            # Lists control tasks assigned specifically to the department.
+        │   ├── institution-admin/       # Institution Admin pages.
+        │   │   ├── Calendar.tsx         # Compliance calendar showing upcoming task deadlines and audit schedules.
+        │   │   ├── Dashboard.tsx        # Risk scorecard and compliance heatmaps for the institution.
+        │   │   ├── Departments.tsx      # CRUD manager for departments and assigning department reviewers.
+        │   │   ├── Reports.tsx          # Generates PDF executive briefing reports using AI summaries.
+        │   │   └── Users.tsx            # User management screen for admins to add, edit, and deactivate users.
+        │   ├── policy/                  # Policy Reviewer pages.
+        │   │   ├── History.tsx          # Displays history of previously approved or rejected policies.
+        │   │   ├── Inbox.tsx            # Inbox showing policy drafts requiring reviewer sign-off.
+        │   │   └── PolicyReview.tsx     # Policy diff viewer and comparison dashboard with AI conflict reports.
+        │   ├── security/                # IT Security Officer pages.
+        │   │   ├── Controls.tsx         # Lists technical security controls assigned to the IT security officer.
+        │   │   ├── Dashboard.tsx        # Dashboard highlighting technical control status and recent incidents.
+        │   │   ├── Evidence.tsx         # Technical evidence upload dashboard for server logs and scan files.
+        │   │   ├── IncidentDetail.tsx   # Incident control center with a 6-hour CERT-In countdown and AI draft reports.
+        │   │   ├── Incidents.tsx        # Security incident logs registry and tracker.
+        │   │   └── NewIncident.tsx      # Incident form that registers title, category, and detection time.
+        │   ├── super-admin/             # Super Admin pages.
+        │   │   ├── AuditTrail.tsx       # Searchable registry exploring global audit logs across institutions.
+        │   │   ├── Dashboard.tsx        # Global dashboard depicting tenant status, health maps, and usage stats.
+        │   │   ├── Roles.tsx            # Read-only lookup of system RBAC permissions.
+        │   │   ├── TenantDetail.tsx     # Detail view showing active users, departments, and logs for one institution.
+        │   │   └── Tenants.tsx          # Tenant manager for onboarding and updating tenant universities.
+        │   └── vendor/                  # Vendor Reviewer pages.
+        │       ├── Dashboard.tsx        # Vendor risk register displaying vendor list and compliance status.
+        │       ├── ExpiryTracker.tsx    # Expiry tracker showing calendar of contract and certification expiries.
+        │       ├── NewVendor.tsx        # Onboarding form for registering vendor organizations.
+        │       └── VendorDetail.tsx     # Contract analyzer workspace with SOC2 check options.
+        ├── routes/                      # Routing setup.
+        │   ├── index.tsx                # Core router creating layout configurations.
+        │   ├── AdminRoutes.tsx          # Routing configuration for the Institution Admin portal.
+        │   ├── AppRouter.tsx            # App router wrapping React components, checking session states.
+        │   ├── AssessorRoutes.tsx       # Routing configuration for the Read-Only Assessor workspace.
+        │   ├── AuditorRoutes.tsx        # Routing configuration for the Auditor workspace.
+        │   ├── AuthRoutes.tsx           # Routing configuration for public authentication screens.
+        │   ├── ComplianceRoutes.tsx     # Routing configuration for the Compliance Officer workspace.
+        │   ├── DeptRoutes.tsx           # Routing configuration for the Department Reviewer workspace.
+        │   ├── PolicyRoutes.tsx         # Routing configuration for the Policy Approver workspace.
+        │   ├── ProtectedRoute.tsx       # Route guard checking login status and active role permissions.
+        │   ├── RoleRoute.tsx            # Access guard verifying logged-in user possesses allowed role names.
+        │   ├── SecurityRoutes.tsx       # Routing configuration for the IT Security Officer dashboard.
+        │   ├── SuperAdminRoutes.tsx     # Routing configuration for the Super Admin system console.
+        │   └── VendorRoutes.tsx         # Routing configuration for the Vendor Reviewer workspace.
+        ├── store/                       # Zustand store configuration.
+        │   └── authStore.ts             # Zustand store managing authentication token, user details, and active role state.
+        └── types/                       # TypeScript interfaces.
+            ├── auth.ts                  # TypeScript interfaces defining authentication, session, and user context shapes.
+            └── roles.ts                 # TypeScript interfaces mapping user permissions and roles.

@@ -84,3 +84,17 @@ class ForgotPasswordResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class ValidateResetTokenResponse(BaseModel):
+    valid: bool
+    email: str | None = None
+
+
+class AssumeRoleRequest(BaseModel):
+    target_role_id: str
+
+
+class ExitRoleAssumptionResponse(BaseModel):
+    message: str
+    user: UserContext

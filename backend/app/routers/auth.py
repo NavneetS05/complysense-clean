@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.database import get_db_session
 from app.schemas.auth import (
+    ExitRoleAssumptionResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
@@ -20,6 +21,7 @@ from app.schemas.auth import (
     TokenRefreshRequest,
     UserContext,
     UpdateProfileRequest,
+    ValidateResetTokenResponse,
 )
 from app.services.auth_service import AuthService
 
@@ -190,3 +192,46 @@ async def reset_password(
     - The token is consumed atomically — replaying the same token returns 401.
     """
     return await AuthService(session).reset_password(payload, request)
+
+
+@router.get(
+    "/validate-reset-token",
+    response_model=ValidateResetTokenResponse,
+    summary="Check whether a password-reset token is valid (non-destructive)",
+)
+async def validate_reset_token(
+    token: str,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ValidateResetTokenResponse:
+    """Peek at a password-reset token without consuming it.
+
+    Returns ``{ "valid": true, "email": "user@example.com" }`` when the token
+    exists, is unused, and has not expired.  Returns ``{ "valid": false }``
+    otherwise.  The Reset Password screen calls this on mount to decide
+    whether to show the reset form or an "invalid link" error state.
+    """
+    return await AuthService(session).validate_reset_token(token)
+
+
+@router.post(
+    "/exit-role-assumption",
+    response_model=ExitRoleAssumptionResponse,
+    summary="Exit an active role assumption and restore the primary role",
+)
+async def exit_role_assumption(
+    request: Request,
+    user: Annotated[UserContext, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ExitRoleAssumptionResponse:
+    """Restore the authenticated user's session to their primary (native) role.
+
+    When a Super Admin or Institution Admin temporarily assumes another role
+    for review purposes, this endpoint exits that assumption. The session's
+    ``active_role_id`` is reset to the user's own ``role_id``, an audit event
+    is written, and a fresh ``UserContext`` (with restored permissions) is
+    returned so the frontend can re-hydrate its auth store without a
+    separate refresh call.
+
+    Calling this when no role assumption is active is a safe no-op.
+    """
+    return await AuthService(session).exit_role_assumption(user, request)

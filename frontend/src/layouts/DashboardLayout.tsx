@@ -1,31 +1,19 @@
-// Use: Main system dashboard shell containing topbar, sidebar, and notification indicators.
+// Use: DashboardLayout — full app shell with sidebar, topbar, role assumption banner, and scrollable content area.
 
-import { NavLink, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import { Sidebar } from "../components/shared/Sidebar";
+import { Topbar } from "../components/shared/Topbar";
 
-interface DashboardLayoutProps {
-  title: string;
-  nav: Array<{ to: string; label: string }>;
-}
-
-export function DashboardLayout({ title, nav }: DashboardLayoutProps) {
+export function DashboardLayout() {
   return (
-    <div className="dashboard-shell">
-      <aside className="sidebar">
-        <div className="brand">ComplySense</div>
-        <nav>
-          {nav.map((item) => (
-            <NavLink key={item.to} to={item.to}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <section className="workspace">
-        <header className="topbar">
-          <h1>{title}</h1>
-        </header>
-        <Outlet />
-      </section>
+    <div className="app-shell">
+      <Sidebar />
+      <div className="main-content-wrapper">
+        <Topbar />
+        <main className="main-content">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

@@ -313,3 +313,23 @@ class UserRepository:
             ),
             {"user_id": user_id},
         )
+
+    async def validate_reset_token(self, token: str) -> dict[str, Any] | None:
+        """Find a valid (unused, non-expired) reset token without marking it used."""
+        result = await self.session.execute(
+            text(
+                """
+                select token_id, pr.user_id, expires_at, u.email
+                  from password_reset_tokens pr
+                  join users u on u.user_id = pr.user_id
+                 where token      = :token
+                   and used       = false
+                   and expires_at > current_timestamp
+                 limit 1
+                """
+            ),
+            {"token": token},
+        )
+        row = result.mappings().first()
+        return dict(row) if row else None
+

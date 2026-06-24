@@ -21,10 +21,20 @@ class ForbiddenError(AppError):
         super().__init__(403, "FORBIDDEN", message)
 
 
+class LockedError(AppError):
+    def __init__(self, message: str = "Account is temporarily locked", blocked_until: str | None = None) -> None:
+        super().__init__(423, "LOCKED", message)
+        self.blocked_until = blocked_until
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+        content = {"error": {"code": exc.code, "message": exc.message}}
+        if hasattr(exc, "blocked_until") and exc.blocked_until:
+            content["error"]["blocked_until"] = exc.blocked_until
         return JSONResponse(
             status_code=exc.status_code,
-            content={"error": {"code": exc.code, "message": exc.message}},
+            content=content,
         )
+
