@@ -19,7 +19,7 @@ export const superAdminRoutes: RouteObject = {
   children: [
     { path: "dashboard", element: <Dashboard /> },
     { path: "tenants",   element: <Tenants /> },
-    { path: "tenants/:id", element: <TenantDetail /> },
+    { path: "tenants/:institution_id", element: <TenantDetail /> },
     { path: "audit-trail", element: <AuditTrail /> },
     { path: "roles",     element: <Roles /> },
   ],

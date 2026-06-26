@@ -9,7 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
-from app.core.deps import get_current_user
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
@@ -23,6 +22,7 @@ class CalendarEventCreate(BaseModel):
     title: str
     event_type: str
     due_date: str  # YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+    description: str | None = None
     related_entity_type: str | None = None
     related_entity_id: str | None = None
 
@@ -39,10 +39,12 @@ async def list_calendar_events(
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CALENDAR))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     event_type: str | None = Query(None),
+    year: int | None = Query(None),
+    month: int | None = Query(None),
 ) -> list[dict[str, Any]]:
     query = """
         select calendar_id, institution_id, event_type, related_entity_type,
-               related_entity_id, title, due_date, is_completed, created_by, created_at
+               related_entity_id, title, description, due_date, is_completed, created_by, created_at
           from compliance_calendar
          where institution_id = :inst_id
     """
@@ -51,6 +53,14 @@ async def list_calendar_events(
     if event_type and event_type != "All":
         query += " and event_type = :event_type"
         params["event_type"] = event_type
+
+    if year is not None:
+        query += " and extract(year from due_date) = :year"
+        params["year"] = year
+
+    if month is not None:
+        query += " and extract(month from due_date) = :month"
+        params["month"] = month
 
     query += " order by due_date asc"
 
@@ -67,6 +77,7 @@ async def list_calendar_events(
             d["created_by"] = str(d["created_by"]) if d["created_by"] else None
             d["due_date"] = d["due_date"].isoformat()
             d["created_at"] = d["created_at"].isoformat()
+            d["description"] = d.get("description")
             out.append(d)
         
         # If the database returns nothing, let's inject a few default compliance calendar items 
@@ -128,12 +139,12 @@ async def create_calendar_event(
 ) -> dict[str, Any]:
     query = """
         insert into compliance_calendar (
-            institution_id, event_type, related_entity_type, related_entity_id, title, due_date, is_completed, created_by
+            institution_id, event_type, related_entity_type, related_entity_id, title, description, due_date, is_completed, created_by
         )
         values (
-            :inst_id, :event_type, :related_entity_type, :related_entity_id, :title, :due_date, false, :user_id
+            :inst_id, :event_type, :related_entity_type, :related_entity_id, :title, :description, :due_date, false, :user_id
         )
-        returning calendar_id, title, due_date
+        returning calendar_id, title, description, due_date
     """
     
     # Parse date string
@@ -205,6 +216,80 @@ async def toggle_event_status(
             raise HTTPException(status_code=404, detail="Event not found")
         await session.commit()
         return {"calendar_id": str(row["calendar_id"]), "is_completed": row["is_completed"]}
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.patch(
+    "/{event_id}",
+    summary="Update calendar event completion status or metadata",
+)
+async def update_calendar_event(
+    event_id: str,
+    payload: CalendarCompleteToggle,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_CALENDAR))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    try:
+        res = await session.execute(
+            text(
+                """
+                update compliance_calendar
+                   set is_completed = :is_completed,
+                       updated_at = now()
+                 where calendar_id = :event_id
+                   and institution_id = :inst_id
+                returning calendar_id, is_completed
+                """
+            ),
+            {
+                "is_completed": payload.is_completed,
+                "event_id": event_id,
+                "inst_id": user_ctx.institution_id,
+            },
+        )
+        row = res.mappings().first()
+        if not row:
+            await session.rollback()
+            raise HTTPException(status_code=404, detail="Event not found")
+        await session.commit()
+        return {"calendar_id": str(row["calendar_id"]), "is_completed": row["is_completed"]}
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete(
+    "/{event_id}",
+    summary="Delete a calendar event",
+)
+async def delete_calendar_event(
+    event_id: str,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_CALENDAR))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    try:
+        res = await session.execute(
+            text(
+                """
+                delete from compliance_calendar
+                 where calendar_id = :event_id
+                   and institution_id = :inst_id
+                returning calendar_id
+                """
+            ),
+            {
+                "event_id": event_id,
+                "inst_id": user_ctx.institution_id,
+            },
+        )
+        row = res.mappings().first()
+        if not row:
+            await session.rollback()
+            raise HTTPException(status_code=404, detail="Event not found")
+        await session.commit()
+        return {"calendar_id": str(row["calendar_id"]), "deleted": True}
     except Exception as exc:
         await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc))

@@ -33,7 +33,7 @@ interface DeptForm {
 const EMPTY_DEPT_FORM: DeptForm = { department_name: "", department_code: "", hod_name: "" };
 
 export default function Departments() {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [reviewerUsers, setReviewerUsers] = useState<ReviewerUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export default function Departments() {
       if (search) params.search = search;
       const res = await api.get("/api/v1/departments", { params });
       setDepartments(res.data);
-    } catch { showToast("Failed to load departments", "error"); }
+    } catch { toast.error("Failed to load departments"); }
     setLoading(false);
   }, [search, statusFilter]);
 
@@ -94,15 +94,15 @@ export default function Departments() {
     try {
       if (deptModal.editTarget) {
         await api.patch(`/api/v1/departments/${deptModal.editTarget.department_id}`, form);
-        showToast("Department updated", "success");
+        toast.success("Department updated");
       } else {
         await api.post("/api/v1/departments", form);
-        showToast("Department created", "success");
+        toast.success("Department created");
       }
       setDeptModal({ open: false, editTarget: null });
       fetchDepartments();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Operation failed", "error");
+      toast.error(err?.response?.data?.detail ?? "Operation failed");
     }
     setModalLoading(false);
   }
@@ -112,12 +112,12 @@ export default function Departments() {
     setModalLoading(true);
     try {
       await api.patch(`/api/v1/departments/${reviewerModal.dept.department_id}`, { reviewer_user_id: selectedReviewer });
-      showToast("Reviewer assigned successfully", "success");
+      toast.success("Reviewer assigned successfully");
       setReviewerModal({ open: false, dept: null });
       setSelectedReviewer("");
       fetchDepartments();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Failed to assign reviewer", "error");
+      toast.error(err?.response?.data?.detail ?? "Failed to assign reviewer");
     }
     setModalLoading(false);
   }
@@ -126,10 +126,10 @@ export default function Departments() {
     if (!confirmToggle) return;
     try {
       await api.put(`/api/v1/departments/${confirmToggle.department_id}/status`, { is_active: !confirmToggle.is_active });
-      showToast(`Department ${confirmToggle.is_active ? "deactivated" : "activated"}`, "success");
+      toast.success(`Department ${confirmToggle.is_active ? "deactivated" : "activated"}`);
       setConfirmToggle(null);
       fetchDepartments();
-    } catch { showToast("Failed to update status", "error"); }
+    } catch { toast.error("Failed to update status"); }
   }
 
   return (
@@ -280,16 +280,15 @@ export default function Departments() {
         </div>
       )}
 
-      {confirmToggle && (
-        <ConfirmModal
-          title={confirmToggle.is_active ? "Deactivate Department" : "Activate Department"}
-          description={`Are you sure you want to ${confirmToggle.is_active ? "deactivate" : "activate"} "${confirmToggle.department_name}"?`}
-          confirmLabel={confirmToggle.is_active ? "Deactivate" : "Activate"}
-          variant={confirmToggle.is_active ? "destructive" : "default"}
-          onConfirm={handleToggleStatus}
-          onCancel={() => setConfirmToggle(null)}
-        />
-      )}
+      <ConfirmModal
+        open={!!confirmToggle}
+        title={confirmToggle?.is_active ? "Deactivate Department" : "Activate Department"}
+        description={confirmToggle ? `Are you sure you want to ${confirmToggle.is_active ? "deactivate" : "activate"} "${confirmToggle.department_name}"?` : ""}
+        confirmLabel={confirmToggle?.is_active ? "Deactivate" : "Activate"}
+        confirmVariant={confirmToggle?.is_active ? "destructive" : "default"}
+        onConfirm={handleToggleStatus}
+        onCancel={() => setConfirmToggle(null)}
+      />
     </PageShell>
   );
 }

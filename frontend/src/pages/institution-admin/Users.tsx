@@ -39,7 +39,7 @@ const ASSIGNABLE_ROLES = [
 const EMPTY_INVITE: InviteForm = { full_name: "", email: "", role_name: "Department Reviewer" };
 
 export default function Users() {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export default function Users() {
     try {
       const res = await api.get("/api/v1/users", { params });
       setUsers(res.data);
-    } catch { showToast("Failed to load users", "error"); }
+    } catch { toast.error("Failed to load users"); }
     setLoading(false);
   }, [search, roleFilter, statusFilter]);
 
@@ -89,12 +89,12 @@ export default function Users() {
     setModalLoading(true);
     try {
       await api.post("/api/v1/users/invite", form);
-      showToast("User invited — they will receive an email with login instructions", "success");
+      toast.success("User invited — they will receive an email with login instructions");
       setInviteModal(false);
       setForm(EMPTY_INVITE);
       fetchUsers();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Invite failed", "error");
+      toast.error(err?.response?.data?.detail ?? "Invite failed");
     }
     setModalLoading(false);
   }
@@ -104,12 +104,12 @@ export default function Users() {
     setModalLoading(true);
     try {
       await api.patch(`/api/v1/users/${roleModal.user.user_id}/role`, { role_name: newRole });
-      showToast("Role updated successfully", "success");
+      toast.success("Role updated successfully");
       setRoleModal({ open: false, user: null });
       setNewRole("");
       fetchUsers();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Failed to change role", "error");
+      toast.error(err?.response?.data?.detail ?? "Failed to change role");
     }
     setModalLoading(false);
   }
@@ -120,14 +120,14 @@ export default function Users() {
     try {
       if (action === "unlock") {
         await api.post(`/api/v1/users/${user.user_id}/unlock`);
-        showToast("Account unlocked", "success");
+        toast.success("Account unlocked");
       } else {
         await api.put(`/api/v1/users/${user.user_id}/status`, { is_active: action === "activate" });
-        showToast(`User ${action}d`, "success");
+        toast.success(`User ${action}d`);
       }
       setConfirmAction(null);
       fetchUsers();
-    } catch { showToast("Action failed", "error"); }
+    } catch { toast.error("Action failed"); }
   }
 
   return (
@@ -303,25 +303,26 @@ export default function Users() {
         </div>
       )}
 
-      {confirmAction && (
-        <ConfirmModal
-          title={
-            confirmAction.action === "unlock" ? "Unlock Account" :
-            confirmAction.action === "deactivate" ? "Deactivate User" : "Activate User"
-          }
-          description={
-            confirmAction.action === "unlock"
-              ? `Unlock "${confirmAction.user.full_name}"'s account? They will be able to log in again.`
-              : confirmAction.action === "deactivate"
-              ? `Deactivating "${confirmAction.user.full_name}" will prevent them from logging in immediately.`
-              : `Activating "${confirmAction.user.full_name}" will restore their login access.`
-          }
-          confirmLabel={confirmAction.action === "unlock" ? "Unlock" : confirmAction.action === "deactivate" ? "Deactivate" : "Activate"}
-          variant={confirmAction.action === "deactivate" ? "destructive" : "default"}
-          onConfirm={handleConfirmAction}
-          onCancel={() => setConfirmAction(null)}
-        />
-      )}
+      <ConfirmModal
+        open={!!confirmAction}
+        title={
+          confirmAction?.action === "unlock" ? "Unlock Account" :
+          confirmAction?.action === "deactivate" ? "Deactivate User" : "Activate User"
+        }
+        description={
+          confirmAction?.action === "unlock"
+            ? `Unlock "${confirmAction.user.full_name}"'s account? They will be able to log in again.`
+            : confirmAction?.action === "deactivate"
+            ? `Deactivating "${confirmAction.user.full_name}" will prevent them from logging in immediately.`
+            : confirmAction
+            ? `Activating "${confirmAction.user.full_name}" will restore their login access.`
+            : ""
+        }
+        confirmLabel={confirmAction?.action === "unlock" ? "Unlock" : confirmAction?.action === "deactivate" ? "Deactivate" : "Activate"}
+        confirmVariant={confirmAction?.action === "deactivate" ? "destructive" : "default"}
+        onConfirm={handleConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+      />
     </PageShell>
   );
 }

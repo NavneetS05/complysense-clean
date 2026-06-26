@@ -62,24 +62,6 @@ const EVENT_COLORS: Record<string, string> = {
   audit_scheduled: "var(--success)",
 };
 
-const MOCK_FRAMEWORKS: FrameworkReadiness[] = [
-  { framework_name: "DPDP Act 2023", percentage: 78, trend: "up" },
-  { framework_name: "ISO 27001:2022", percentage: 62, trend: "flat" },
-  { framework_name: "NIST CSF 2.0", percentage: 41, trend: "down" },
-  { framework_name: "CERT-In 2022", percentage: 89, trend: "up" },
-  { framework_name: "UGC Guidelines", percentage: 71, trend: "flat" },
-  { framework_name: "NAAC Criteria 4 & 6", percentage: 80, trend: "up" },
-];
-
-const MOCK_DEPTS: DeptScore[] = [
-  { department_name: "Computer Science", compliance_score: 88 },
-  { department_name: "Administration", compliance_score: 62 },
-  { department_name: "Library", compliance_score: 45 },
-  { department_name: "Finance", compliance_score: 79 },
-  { department_name: "IT Infrastructure", compliance_score: 91 },
-  { department_name: "Research & Dev", compliance_score: 55 },
-];
-
 function TrendArrow({ trend }: { trend: "up" | "down" | "flat" }) {
   if (trend === "up") return <span style={{ color: "var(--success)", fontSize: 14 }}>↑</span>;
   if (trend === "down") return <span style={{ color: "var(--danger)", fontSize: 14 }}>↓</span>;
@@ -112,6 +94,8 @@ function DeptHeatCard({ dept }: { dept: DeptScore }) {
 export default function AdminDashboard() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [frameworks, setFrameworks] = useState<FrameworkReadiness[]>([]);
+  const [departments, setDepartments] = useState<DeptScore[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [recentActivity, setRecentActivity] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,40 +103,41 @@ export default function AdminDashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiGenTime, setAiGenTime] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const [calRes, auditRes] = await Promise.allSettled([
-        api.get("/api/v1/calendar"),
-        api.get("/api/v1/audit/recent?limit=10"),
-      ]);
-      if (calRes.status === "fulfilled") setCalendarEvents(calRes.value.data.slice(0, 7));
-      if (auditRes.status === "fulfilled") setRecentActivity(auditRes.value.data);
-      // Use mock stats since no specific admin/stats endpoint exists yet
-      setStats({
-        overall_compliance: 74, compliance_delta: 3,
-        active_gaps: 18, critical_gaps: 3, high_gaps: 7,
-        overdue_controls: 5, open_incidents: 2, critical_incidents: 0,
-      });
-      setLoading(false);
+  async function loadDashboardData() {
+    setLoading(true);
+    const [dashboardRes, calRes, auditRes] = await Promise.allSettled([
+      api.get("/api/v1/institutions/dashboard"),
+      api.get("/api/v1/calendar"),
+      api.get("/api/v1/audit/recent?limit=10"),
+    ]);
+
+    if (dashboardRes.status === "fulfilled") {
+      const payload = dashboardRes.value.data;
+      setStats(payload.stats);
+      setFrameworks(payload.frameworks ?? []);
+      setDepartments(payload.departments ?? []);
+      setAiRisks(payload.ai_risks ?? []);
+      setAiGenTime("Just now");
     }
-    load();
+
+    if (calRes.status === "fulfilled") setCalendarEvents(calRes.value.data.slice(0, 7));
+    if (auditRes.status === "fulfilled") setRecentActivity(auditRes.value.data);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void loadDashboardData();
   }, []);
 
   async function handleGenerateRiskHeatmap() {
     setAiLoading(true);
     try {
-      // Mock AI risk prediction — in production, calls POST /ai/admin/risk-heatmap
-      await new Promise((r) => setTimeout(r, 1800)); // simulate latency
-      setAiRisks([
-        { rank: 1, framework: "DPDP Act 2023", description: "Data processing records incomplete — Section 8 obligation unaddressed.", severity: "critical", affected_dept: "IT Infrastructure" },
-        { rank: 2, framework: "ISO 27001:2022", description: "Access control policy missing for cloud resources.", severity: "high", affected_dept: "Computer Science" },
-        { rank: 3, framework: "NIST CSF 2.0", description: "Incident response plan not tested in 12 months.", severity: "high", affected_dept: "Administration" },
-        { rank: 4, framework: "CERT-In 2022", description: "Patch management cycle has 4 servers 3+ months overdue.", severity: "medium", affected_dept: "IT Infrastructure" },
-        { rank: 5, framework: "UGC Guidelines", description: "Student data retention policy pending annual review.", severity: "medium", affected_dept: "Library" },
-      ]);
+      const res = await api.get("/api/v1/institutions/dashboard");
+      setAiRisks(res.data.ai_risks ?? []);
       setAiGenTime("Just now");
-    } catch { }
+    } catch {
+      // keep the existing list if refresh fails
+    }
     setAiLoading(false);
   }
 
@@ -207,7 +192,7 @@ export default function AdminDashboard() {
         <div className="card">
           <div className="card-header"><h2 className="card-title">Framework Compliance</h2></div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {MOCK_FRAMEWORKS.map((fw) => (
+            {frameworks.map((fw) => (
               <div key={fw.framework_name}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{fw.framework_name}</span>
@@ -225,7 +210,7 @@ export default function AdminDashboard() {
         <div className="card">
           <div className="card-header"><h2 className="card-title">Department Compliance</h2></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {MOCK_DEPTS.map((d) => <DeptHeatCard key={d.department_name} dept={d} />)}
+            {departments.map((d) => <DeptHeatCard key={d.department_name} dept={d} />)}
           </div>
         </div>
       </div>

@@ -122,6 +122,203 @@ async def get_anomaly_alerts(
 
 
 @router.get(
+    "/dashboard",
+    summary="Get institution-admin dashboard data from seeded compliance records",
+)
+async def get_institution_dashboard(
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_GAPS))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    try:
+        stats_res = await session.execute(
+            text(
+                """
+                select
+                    count(*) filter (where remediation_status in ('open', 'in_progress')) as active_gaps,
+                    count(*) filter (where severity = 'critical' and remediation_status in ('open', 'in_progress')) as critical_gaps,
+                    count(*) filter (where severity = 'high' and remediation_status in ('open', 'in_progress')) as high_gaps
+                from compliance_gaps
+                where institution_id = :inst_id
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        gap_stats = stats_res.mappings().first() or {}
+
+        control_res = await session.execute(
+            text(
+                """
+                select count(*) as overdue_controls
+                from control_assignments
+                where institution_id = :inst_id
+                  and due_date is not null
+                  and due_date < now()
+                  and status not in ('compliant', 'submitted', 'na')
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        overdue_controls = control_res.scalar() or 0
+
+        incident_res = await session.execute(
+            text(
+                """
+                select
+                    count(*) filter (where status not in ('resolved', 'closed')) as open_incidents,
+                    count(*) filter (where severity = 'critical' and status not in ('resolved', 'closed')) as critical_incidents
+                from incidents
+                where institution_id = :inst_id
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        incident_stats = incident_res.mappings().first() or {}
+
+        compliance_rows = await session.execute(
+            text(
+                """
+                select framework_name, compliance_percentage, created_at
+                from compliance_results
+                where institution_id = :inst_id
+                order by framework_name asc, created_at asc
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        framework_groups: dict[str, list[float]] = {}
+        for row in compliance_rows.mappings().all():
+            name = row["framework_name"] or "General"
+            framework_groups.setdefault(name, []).append(float(row["compliance_percentage"] or 0))
+
+        frameworks: list[dict[str, Any]] = []
+        for name, values in framework_groups.items():
+            current = values[-1] if values else 0.0
+            previous = values[-2] if len(values) > 1 else current
+            if current > previous + 1:
+                trend = "up"
+            elif current < previous - 1:
+                trend = "down"
+            else:
+                trend = "flat"
+            frameworks.append(
+                {
+                    "framework_name": name,
+                    "percentage": round(current, 1),
+                    "trend": trend,
+                }
+            )
+
+        dept_rows = await session.execute(
+            text(
+                """
+                select d.department_name,
+                       round(coalesce(avg(case
+                           when ca.status = 'compliant' then 100.0
+                           when ca.status = 'submitted' then 90.0
+                           when ca.status = 'in_progress' then 60.0
+                           when ca.status = 'non_compliant' then 25.0
+                           else 0.0
+                       end), 0), 1) as compliance_score
+                from departments d
+                left join control_assignments ca
+                  on ca.institution_id = d.institution_id
+                 and ca.department_id = d.department_id
+                where d.institution_id = :inst_id
+                  and d.is_active = true
+                group by d.department_id, d.department_name
+                order by d.department_name asc
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        departments = [
+            {
+                "department_name": row["department_name"],
+                "compliance_score": int(row["compliance_score"] or 0),
+            }
+            for row in dept_rows.mappings().all()
+        ]
+
+        gap_rows = await session.execute(
+            text(
+                """
+                select cg.title,
+                       cg.framework_name,
+                       cg.severity,
+                       coalesce(cg.description, cg.title) as description,
+                       d.department_name as affected_dept
+                from compliance_gaps cg
+                left join control_assignments ca
+                  on ca.institution_id = cg.institution_id
+                 and ca.control_id = cg.control_id
+                left join departments d
+                  on d.department_id = ca.department_id
+                where cg.institution_id = :inst_id
+                  and cg.remediation_status in ('open', 'in_progress')
+                order by case cg.severity
+                    when 'critical' then 0
+                    when 'high' then 1
+                    when 'medium' then 2
+                    else 3
+                end,
+                cg.created_at desc
+                limit 5
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        ai_risks = []
+        for idx, row in enumerate(gap_rows.mappings().all(), start=1):
+            severity = row["severity"] or "medium"
+            if severity not in {"critical", "high", "medium"}:
+                severity = "medium"
+            ai_risks.append(
+                {
+                    "rank": idx,
+                    "framework": row["framework_name"] or "General",
+                    "description": row["description"] or row["title"] or "Open remediation item requires review.",
+                    "severity": severity,
+                    "affected_dept": row["affected_dept"] or "Institution-wide",
+                }
+            )
+
+        latest_result = await session.execute(
+            text(
+                """
+                select compliance_percentage
+                from compliance_results
+                where institution_id = :inst_id
+                order by created_at desc
+                limit 2
+                """
+            ),
+            {"inst_id": user_ctx.institution_id},
+        )
+        latest_values = [float(row[0] or 0) for row in latest_result.fetchall()]
+        current_compliance = latest_values[0] if latest_values else 0.0
+        previous_compliance = latest_values[1] if len(latest_values) > 1 else current_compliance
+        compliance_delta = round(current_compliance - previous_compliance, 1)
+
+        return {
+            "stats": {
+                "overall_compliance": round(current_compliance, 1) if current_compliance else 0,
+                "compliance_delta": compliance_delta,
+                "active_gaps": int(gap_stats.get("active_gaps") or 0),
+                "critical_gaps": int(gap_stats.get("critical_gaps") or 0),
+                "high_gaps": int(gap_stats.get("high_gaps") or 0),
+                "overdue_controls": int(overdue_controls),
+                "open_incidents": int(incident_stats.get("open_incidents") or 0),
+                "critical_incidents": int(incident_stats.get("critical_incidents") or 0),
+            },
+            "frameworks": frameworks,
+            "departments": departments,
+            "ai_risks": ai_risks,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get(
     "",
     summary="List all institutions with search and status/type/state filters",
 )

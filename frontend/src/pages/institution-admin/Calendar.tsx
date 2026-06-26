@@ -55,7 +55,7 @@ function isSameDay(d1: Date, d2: Date) {
 }
 
 export default function CalendarPage() {
-  const { showToast } = useToast();
+  const toast = useToast();
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -76,7 +76,7 @@ export default function CalendarPage() {
     try {
       const res = await api.get("/api/v1/calendar", { params: { year, month } });
       setEvents(res.data ?? []);
-    } catch { showToast("Failed to load events", "error"); }
+    } catch { toast.error("Failed to load events"); }
     setLoading(false);
   }, [currentDate]);
 
@@ -95,12 +95,12 @@ export default function CalendarPage() {
     setModalLoading(true);
     try {
       await api.post("/api/v1/calendar", form);
-      showToast("Event created", "success");
+      toast.success("Event created");
       setShowModal(false);
       setForm(EMPTY_FORM);
       fetchEvents();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Failed to create event", "error");
+      toast.error(err?.response?.data?.detail ?? "Failed to create event");
     }
     setModalLoading(false);
   }
@@ -108,21 +108,21 @@ export default function CalendarPage() {
   async function handleToggleComplete(event: CalendarEvent) {
     try {
       await api.patch(`/api/v1/calendar/${event.calendar_id}`, { is_completed: !event.is_completed });
-      showToast(`Event marked as ${event.is_completed ? "pending" : "completed"}`, "success");
+      toast.success(`Event marked as ${event.is_completed ? "pending" : "completed"}`);
       fetchEvents();
       setSelectedEvent(null);
-    } catch { showToast("Failed to update event", "error"); }
+    } catch { toast.error("Failed to update event"); }
   }
 
   async function handleDelete() {
     if (!confirmDelete) return;
     try {
       await api.delete(`/api/v1/calendar/${confirmDelete.calendar_id}`);
-      showToast("Event deleted", "success");
+      toast.success("Event deleted");
       setConfirmDelete(null);
       setSelectedEvent(null);
       fetchEvents();
-    } catch { showToast("Failed to delete event", "error"); }
+    } catch { toast.error("Failed to delete event"); }
   }
 
   // Calendar grid
@@ -354,16 +354,15 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {confirmDelete && (
-        <ConfirmModal
-          title="Delete Event"
-          description={`Delete "${confirmDelete.title}"? This cannot be undone.`}
-          confirmLabel="Delete"
-          variant="destructive"
-          onConfirm={handleDelete}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      <ConfirmModal
+        open={!!confirmDelete}
+        title="Delete Event"
+        description={confirmDelete ? `Delete "${confirmDelete.title}"? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </PageShell>
   );
 }

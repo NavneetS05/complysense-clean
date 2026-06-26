@@ -59,7 +59,7 @@ const ACTION_LABELS: Record<string, string> = {
 export default function TenantDetail() {
   const { institution_id } = useParams<{ institution_id: string }>();
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const toast = useToast();
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -93,11 +93,11 @@ export default function TenantDetail() {
     if (!institution) return;
     try {
       await api.put(`/api/v1/institutions/${institution_id}/status`, { is_active: !institution.is_active });
-      showToast(`Institution ${institution.is_active ? "deactivated" : "activated"}`, "success");
+      toast.success(`Institution ${institution.is_active ? "deactivated" : "activated"}`);
       setInstitution({ ...institution, is_active: !institution.is_active });
       setConfirmDeactivate(false);
     } catch {
-      showToast("Failed to update status", "error");
+      toast.error("Failed to update status");
     }
   }
 
@@ -250,18 +250,17 @@ export default function TenantDetail() {
         )}
       </div>
 
-      {confirmDeactivate && (
-        <ConfirmModal
-          title={institution.is_active ? "Deactivate Institution" : "Activate Institution"}
-          description={institution.is_active
-            ? `Deactivating will prevent all users at "${institution.institution_name}" from logging in. Continue?`
-            : `This will re-enable access for all users at "${institution.institution_name}". Continue?`}
-          confirmLabel={institution.is_active ? "Deactivate" : "Activate"}
-          variant={institution.is_active ? "destructive" : "default"}
-          onConfirm={handleToggleStatus}
-          onCancel={() => setConfirmDeactivate(false)}
-        />
-      )}
+      <ConfirmModal
+        open={confirmDeactivate}
+        title={institution.is_active ? "Deactivate Institution" : "Activate Institution"}
+        description={institution.is_active
+          ? `Deactivating will prevent all users at "${institution.institution_name}" from logging in. Continue?`
+          : `This will re-enable access for all users at "${institution.institution_name}". Continue?`}
+        confirmLabel={institution.is_active ? "Deactivate" : "Activate"}
+        confirmVariant={institution.is_active ? "destructive" : "default"}
+        onConfirm={handleToggleStatus}
+        onCancel={() => setConfirmDeactivate(false)}
+      />
     </PageShell>
   );
 }

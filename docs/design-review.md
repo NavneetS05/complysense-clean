@@ -211,3 +211,46 @@ Approved
 - [`AdminRoutes.tsx`](file:///c:/Users/hp/Desktop/complysense-clean/frontend/src/routes/AdminRoutes.tsx#L12-L18) — Uses prop-free `<DashboardLayout />`.
 - [`DashboardLayout.tsx`](file:///c:/Users/hp/Desktop/complysense-clean/frontend/src/layouts/DashboardLayout.tsx) — Cleared of prop-types.
 
+---
+
+## Iteration 6 — 2026-06-26
+
+### Source
+- `frontend/src/pages/super-admin/`
+- `frontend/src/pages/institution-admin/`
+- `frontend/src/routes/SuperAdminRoutes.tsx`
+- `frontend/src/components/shared/Toast.tsx`
+- `frontend/src/components/shared/ConfirmModal.tsx`
+
+### Observation
+Completed implementation of all Phase 4 (Super Admin Portal) and Phase 5 (Institution Admin Portal) pages. Identified several TypeScript compilation errors during integration:
+1. `useToast()` hook returns context handlers (`success`, `error`, `warning`) instead of a generic `showToast(msg, type)` function.
+2. `ConfirmModal` component expects explicit `open` control prop, and a `confirmVariant` prop (values: `"default" | "destructive"`) rather than `variant`.
+3. The Super Admin routing list defined the path for the institution detail page as `tenants/:id` but the `TenantDetail.tsx` component expected the route param name `institution_id` (via `useParams<{ institution_id: string }>()`).
+
+### Decision
+1. Implemented the executive reports page `/admin/reports` with a PDF briefings generator and log table.
+2. Adjusted route paths in `SuperAdminRoutes.tsx` to match the exact `:institution_id` parameter expected by `TenantDetail.tsx`.
+3. Updated the frontend toast notifications across all Phase 4 & 5 pages to call `toast.success(msg)` and `toast.error(msg)` directly.
+4. Rewrote `ConfirmModal` tags to pass `open={!!target}` and `confirmVariant` correctly, satisfying TS rules.
+
+### Reasoning
+- Aligning prop names directly with component contracts guarantees correct type checking and prevents UI crashes during user confirmation.
+- Aligning URL router parameter keys to component parameters ensures that institution data displays correctly when navigating.
+
+### Alternatives Considered
+- Modify the `useToast` hook or `ConfirmModal` props directly — rejected because those are shared core components created in earlier iterations. Modifying page calls is less intrusive and cleaner.
+
+### Impact
+- **Pages:** Super Admin and Institution Admin pages load correctly.
+- **Routing:** Deep linking to `/super-admin/tenants/:institution_id` parses the ID properly.
+- **TypeScript:** The project compiles cleanly.
+
+### Status
+Approved
+
+### Evidence
+- `frontend/src/pages/super-admin/TenantDetail.tsx` — uses `institution_id` successfully.
+- `frontend/src/pages/institution-admin/Reports.tsx` — generates mock executive PDF briefing logs.
+- `npm run typecheck` — successfully compiles with zero errors.
+

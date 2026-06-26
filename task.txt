@@ -1,0 +1,43 @@
+Phase 4: Super Admin Portal
+ Global Health Dashboard (/super-admin/dashboard)
+ Anomaly banner, platform stats cards, institution status table, and recent audit logs
+ Tenant Manager (/super-admin/tenants)
+ Directory table, activate/deactivate toggle, and Add Institution modal
+ Institution Detail (/super-admin/tenants/:institution_id)
+ View users, departments, and localized audit logs
+ Audit Trail Explorer (/super-admin/audit-trail)
+ Filterable list (date ranges, user names, actions) and CSV download endpoint
+ Roles & Permissions reference page (/super-admin/roles)
+
+Phase 5: Institution Admin Portal
+ Dashboard & Risk Scorecard (/admin/dashboard)
+ Readiness indicators, department compliances, and risk prediction trigger
+ Department Manager (/admin/departments)
+ CRUD directory, assign reviewer dialog, activation toggle
+ User Lifecycle (/admin/users)
+ User table directory, deactivate, trigger password reset, add/edit user dialogs
+ Compliance Calendar (/admin/calendar)
+ Month/list views, filter event chips, add event modal
+ Executive Reports page (/admin/reports)
+ Generate report (spinner), list past reports
+
+Phase 6: Compliance Officer Workstation
+ Command Dashboard (/compliance/dashboard)
+ Donut chart, AI Triage panel (runs prompt execution), priority checklists
+ Control Kanban (/compliance/controls)
+ 5 status columns, drag-and-drop actions, filter widgets
+ Control Detail (/compliance/controls/:assignment_id)
+ Framework definition cards, upload zone, notes list, timeline log
+ Gap Matrix (/compliance/gaps)
+ Severity grid table, detail drawer, mitigation task launcher
+ Evidence Queue (/compliance/evidence-queue)
+ Verification table list, PDF preview panel inside drawer, rejection modal
+ Assessment Runner (/compliance/assessments/:assessment_id)
+ List of runs, paginated control questionnaire runner, auto-save state
+ Policy Manager & Editor (/compliance/policies)
+ Registry list, split view digital policy text editor with AI Copilot wizard and validation checker
+
+Phase 7: Verification and Cleanup
+ Write stubs for the remaining 6 roles
+ Validate entire routing configurations
+ Document final implementations in walkthrough.md

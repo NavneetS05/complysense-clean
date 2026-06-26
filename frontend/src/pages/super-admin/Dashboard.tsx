@@ -41,19 +41,27 @@ interface AuditLog {
   created_at: string;
 }
 
-// Mock 14-day activity chart
-function buildActivityData() {
-  const days = [];
+function buildActivityData(logs: AuditLog[]) {
+  const buckets = new Map<string, { date: string; logins: number; actions: number }>();
+
   for (let i = 13; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push({
-      date: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-      logins: Math.floor(Math.random() * 80) + 20,
-      actions: Math.floor(Math.random() * 150) + 40,
-    });
+    const key = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    buckets.set(key, { date: key, logins: 0, actions: 0 });
   }
-  return days;
+
+  logs.forEach((log) => {
+    const createdAt = new Date(log.created_at);
+    if (Number.isNaN(createdAt.getTime())) return;
+    const key = createdAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const bucket = buckets.get(key);
+    if (!bucket) return;
+    bucket.actions += 1;
+    if (log.action_type === "login") bucket.logins += 1;
+  });
+
+  return Array.from(buckets.values());
 }
 
 function CompliancePill({ pct }: { pct: number }) {
@@ -80,7 +88,7 @@ export default function SuperAdminDashboard() {
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [chartData] = useState(buildActivityData());
+  const [chartData, setChartData] = useState<{ date: string; logins: number; actions: number }[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -98,7 +106,11 @@ export default function SuperAdminDashboard() {
         if (statsRes.status === "fulfilled") setStats(statsRes.value.data);
         if (alertsRes.status === "fulfilled") setAlerts(alertsRes.value.data.alerts ?? []);
         if (instRes.status === "fulfilled") setInstitutions(instRes.value.data);
-        if (auditRes.status === "fulfilled") setAuditLogs(auditRes.value.data);
+        if (auditRes.status === "fulfilled") {
+          const data = auditRes.value.data;
+          setAuditLogs(data);
+          setChartData(buildActivityData(data));
+        }
       } catch { /* handled individually */ }
       setLoading(false);
     }

@@ -47,7 +47,7 @@ const EMPTY_FORM: InstitutionFormData = {
 };
 
 export default function Tenants() {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -75,7 +75,7 @@ export default function Tenants() {
       const res = await api.get("/api/v1/institutions", { params });
       setInstitutions(res.data);
     } catch {
-      showToast("Failed to load institutions", "error");
+      toast.error("Failed to load institutions");
     }
     setLoading(false);
   }, [search, statusFilter, typeFilter, stateFilter]);
@@ -99,12 +99,12 @@ export default function Tenants() {
         ...form,
         staff_count: form.staff_count ? parseInt(form.staff_count) : 0,
       });
-      showToast("Institution created successfully", "success");
+      toast.success("Institution created successfully");
       setShowModal(false);
       setForm(EMPTY_FORM);
       fetchInstitutions();
     } catch (err: any) {
-      showToast(err?.response?.data?.detail ?? "Failed to create institution", "error");
+      toast.error(err?.response?.data?.detail ?? "Failed to create institution");
     }
     setModalLoading(false);
   }
@@ -115,11 +115,11 @@ export default function Tenants() {
       await api.put(`/api/v1/institutions/${confirmTarget.institution_id}/status`, {
         is_active: !confirmTarget.is_active,
       });
-      showToast(`Institution ${confirmTarget.is_active ? "deactivated" : "activated"} successfully`, "success");
+      toast.success(`Institution ${confirmTarget.is_active ? "deactivated" : "activated"} successfully`);
       setConfirmTarget(null);
       fetchInstitutions();
     } catch {
-      showToast("Failed to update status", "error");
+      toast.error("Failed to update status");
     }
   }
 
@@ -284,18 +284,17 @@ export default function Tenants() {
       )}
 
       {/* Deactivate Confirm */}
-      {confirmTarget && (
-        <ConfirmModal
-          title={confirmTarget.is_active ? "Deactivate Institution" : "Activate Institution"}
-          description={confirmTarget.is_active
-            ? `Deactivating will prevent all users at "${confirmTarget.institution_name}" from logging in. Continue?`
-            : `This will re-enable access for all users at "${confirmTarget.institution_name}". Continue?`}
-          confirmLabel={confirmTarget.is_active ? "Deactivate" : "Activate"}
-          variant={confirmTarget.is_active ? "destructive" : "default"}
-          onConfirm={handleToggleStatus}
-          onCancel={() => setConfirmTarget(null)}
-        />
-      )}
+      <ConfirmModal
+        open={!!confirmTarget}
+        title={confirmTarget?.is_active ? "Deactivate Institution" : "Activate Institution"}
+        description={confirmTarget ? (confirmTarget.is_active
+          ? `Deactivating will prevent all users at "${confirmTarget.institution_name}" from logging in. Continue?`
+          : `This will re-enable access for all users at "${confirmTarget.institution_name}". Continue?`) : ""}
+        confirmLabel={confirmTarget?.is_active ? "Deactivate" : "Activate"}
+        confirmVariant={confirmTarget?.is_active ? "destructive" : "default"}
+        onConfirm={handleToggleStatus}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </PageShell>
   );
 }
