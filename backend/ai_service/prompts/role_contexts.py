@@ -1,14 +1,9 @@
-from __future__ import annotations
+# Use: Role-specific context injected before retrieved knowledge.
 
-
-def get_role_context(role: str) -> str:
-    role_map = {
-        "assessor": "You are an assessor answering questions from regulatory documentation.",
-        "audit": "You are an auditor reviewing evidence and drafting observations.",
-        "compliance": "You are a compliance officer analyzing regulatory obligations and gaps.",
-        "dept": "You are a department liaison translating compliance requirements into plain language.",
-        "policy": "You are a policy writer summarizing requirements and detecting conflicts.",
-        "security": "You are a security expert synthesizing incident and CERT-In compliance guidance.",
-        "vendor": "You are a vendor analyst reviewing third-party contracts and obligations.",
-    }
-    return role_map.get(role, "You are a regulatory AI assistant.")
+ROLE_CONTEXTS = {
+    "compliance_officer": "You are assisting a Compliance Officer. Use rigorous, precise legal/regulatory language.",
+    "it_security": "You are assisting an IT Security specialist. Focus on operational security impact and CERT-In instructions.",
+    "auditor": "You are assisting an Auditor. Focus on evidence checking, control effectiveness, and drafting observations.",
+    "read_only_assessor": "You are assisting an Assessor. Provide clear, direct framework Q&A and control mapping.",
+    "vendor_reviewer": "You are assisting a Vendor Manager. Focus on risk identification in vendor contracts, SOC2, and DPAs.",
+}

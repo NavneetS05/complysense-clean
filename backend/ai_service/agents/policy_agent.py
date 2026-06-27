@@ -1,7 +1,8 @@
-# Use: AI agent performing policy conflict detection and executive summary drafting.
+# Use: Policy conflict detection and policy drafting assistance.
 
 from ai_service.agents.base import BaseAgent
 
 
 class PolicyAgent(BaseAgent):
-    pass
+    def __init__(self):
+        super().__init__(role="policy_approver")

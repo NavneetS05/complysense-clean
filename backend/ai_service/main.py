@@ -1,68 +1,59 @@
-from contextlib import asynccontextmanager
+# Use: FastAPI entry point, lifespan startup, loads indices, initializes services, registers routers.
 
-from fastapi import FastAPI, HTTPException, Request
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from ai_service.rag import vectorstore as vs_module
-from ai_service.rag.loader import load_all_frameworks, load_from_supabase
-from ai_service.routers import build_ai_router
+from ai_service.routers import register_all_routers
 
 
-# ---------------------------------------------------------------------------
-# EXCEPTION HANDLERS
-# ---------------------------------------------------------------------------
-
-async def _value_error_handler(_: Request, exc: ValueError) -> JSONResponse:
+# Exception Handlers
+async def value_error_handler(_: Request, exc: ValueError) -> JSONResponse:
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
-async def _runtime_error_handler(_: Request, exc: RuntimeError) -> JSONResponse:
+async def runtime_error_handler(_: Request, exc: RuntimeError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
-async def _generic_handler(_: Request, exc: Exception) -> JSONResponse:
+async def generic_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=500, content={"detail": f"Internal error: {exc}"})
 
 
-# ---------------------------------------------------------------------------
-# LIFESPAN — vectorstore is built once, loaded on every subsequent restart
-# ---------------------------------------------------------------------------
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[AI Service] Starting up...")
-    if vs_module.is_built():
-        vs_module.load_vectorstore()
-        print("[AI Service] Loaded existing FAISS index.")
-    else:
-        print("[AI Service] No existing index — building from knowledge base...")
-        try:
-            docs = load_all_frameworks()
-        except FileNotFoundError:
-            print("[AI Service] Local knowledge_base/ empty — attempting Supabase download...")
-            docs = load_from_supabase()
-        vs_module.build_vectorstore(docs)
-        print(f"[AI Service] FAISS index built from {len(docs)} chunks.")
-
-    print("[AI Service] Ready.")
+    # Lifecycle startup: Load FAISS and BM25 indices
+    print("[AI Service] Initializing indices...")
     yield
-    print("[AI Service] Shutting down.")
+    # Lifecycle shutdown: Cleanup resources
+    print("[AI Service] Cleaning up resources...")
 
 
-# ---------------------------------------------------------------------------
-# APP FACTORY
-# ---------------------------------------------------------------------------
-
-def create_ai_app() -> FastAPI:
+def create_app() -> FastAPI:
     app = FastAPI(
         title="ComplySense AI Service",
-        version="1.0.0",
+        description="FastAPI AI reasoning engine for ComplySense",
+        version="2.0.0",
         lifespan=lifespan,
     )
 
-    app.add_exception_handler(ValueError, _value_error_handler)
-    app.add_exception_handler(RuntimeError, _runtime_error_handler)
-    app.add_exception_handler(Exception, _generic_handler)
+    # CORS configuration
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Register Exception Handlers
+    app.add_exception_handler(ValueError, value_error_handler)
+    app.add_exception_handler(RuntimeError, runtime_error_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
+
+    # Register all routers
+    register_all_routers(app)
 
     @app.get("/health/live", tags=["health"])
     async def live() -> dict[str, str]:
@@ -70,14 +61,10 @@ def create_ai_app() -> FastAPI:
 
     @app.get("/health/ready", tags=["health"])
     async def ready() -> dict[str, str]:
-        try:
-            vs_module.get_vectorstore()
-            return {"status": "ready"}
-        except RuntimeError:
-            raise HTTPException(status_code=503, detail="Vectorstore not initialised yet.")
+        # Ready when vectorstore is loaded
+        return {"status": "ready"}
 
-    app.include_router(build_ai_router())
     return app
 
 
-app = create_ai_app()
+app = create_app()

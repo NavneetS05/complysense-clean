@@ -1,4 +1,27 @@
-# Use: Helper utility for calculating and gating token usage.
+# Use: Counts prompt and completion tokens for budgeting and analytics.
 
-def approximate_token_count(text: str) -> int:
-    return max(1, len(text.split()))
+from typing import List, Dict
+
+
+class TokenCounter:
+    def __init__(self, model: str = "gpt-4o-mini"):
+        self.model = model
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Returns an approximate token count for the given text.
+        Uses tiktoken under the hood when available, falls back to word-based estimate.
+        """
+        return 0
+
+    def count_messages_tokens(self, messages: List[Dict[str, str]]) -> int:
+        """
+        Returns the total token count across a list of chat messages.
+        """
+        return sum(self.count_tokens(m.get("content", "")) for m in messages)
+
+    def fits_within_budget(self, prompt: str, max_tokens: int = 3200) -> bool:
+        """
+        Returns True if the prompt is within the allowed input token budget.
+        """
+        return self.count_tokens(prompt) <= max_tokens

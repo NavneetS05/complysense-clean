@@ -1,3 +1,7 @@
-# Use: Initializes utilities for the AI service.
+# Use: Shared helper utilities init.
 
-__all__ = ["context_builder", "token_counter"]
+from ai_service.utils.token_counter import TokenCounter
+from ai_service.utils.llm import LLMService
+from ai_service.utils.logger import StructuredLogger
+
+__all__ = ["TokenCounter", "LLMService", "StructuredLogger"]

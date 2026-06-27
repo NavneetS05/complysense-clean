@@ -1,7 +1,8 @@
-# Use: AI agent providing compliance alert triage and regulatory change gap analysis.
+# Use: Compliance gap analysis and regulatory obligation checking.
 
 from ai_service.agents.base import BaseAgent
 
 
 class ComplianceAgent(BaseAgent):
-    pass
+    def __init__(self):
+        super().__init__(role="compliance_officer")

@@ -216,6 +216,38 @@ Approved
 ## Iteration 6 — 2026-06-26
 
 ### Source
+- `docs/itsecurity_ui.md`
+- `frontend/src/pages/security/`
+- `frontend/src/pages/auditor/Workspace.tsx`
+- `frontend/src/pages/dept/Evidence.tsx`
+
+### Observation
+The implementation work for new UI documents must not rely on fallback or mock data behavior in the frontend when the backend contract is still being developed. A few earlier UI implementations used local parsing fallbacks (for example, accepting either an array or a wrapped `{ data: ... }` object) and generic placeholder behavior, which makes the UI less explicit and can silently hide contract mismatches.
+
+### Decision
+- Frontend pages will only consume the API contract shape that the backend is expected to return.
+- If a response shape is not yet finalized, the UI will leave the field unpopulated or show a neutral empty state rather than silently coercing the payload.
+- Any pending integration point must be documented as a placeholder contract in the design review document and in the relevant implementation notes, using the expected backend endpoint name and payload shape.
+- The implementation will not introduce fallback data generation inside the UI for real workflow pages.
+
+### Reasoning
+- Fallback parsing can be mistaken for working integration and makes later backend contract changes harder to track.
+- Explicit placeholder contracts make it clear which team owns the endpoint and what response shape is expected.
+- This keeps the frontend implementation honest, testable, and aligned with the product spec.
+
+### Impact
+- Frontend pages will be more explicit about missing backend integrations.
+- The backend and AI service teams can align on the exact endpoint names and payloads without UI-side guessing.
+- The docs will now record what is already implemented and what remains as a contract placeholder.
+
+### Status
+Approved
+
+### Evidence
+- `frontend/src/pages/auditor/Workspace.tsx` — response parsing is now documented as a placeholder contract rather than a silent fallback.
+- `frontend/src/pages/security/` — the security workflow pages will follow the same pattern.
+
+### Source
 - `frontend/src/pages/super-admin/`
 - `frontend/src/pages/institution-admin/`
 - `frontend/src/routes/SuperAdminRoutes.tsx`

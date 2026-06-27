@@ -1,19 +1,14 @@
-from __future__ import annotations
+# Use: Role-based authorization checks before AI execution.
 
-from typing import Sequence
-
-ENDPOINT_ROLE_MAP: dict[str, Sequence[str]] = {
-    "compliance": ["compliance_officer", "admin"],
-    "security": ["security_officer", "admin"],
-    "audit": ["auditor", "admin"],
-    "dept": ["department_head", "admin"],
-    "vendor": ["vendor_manager", "admin"],
-    "policy": ["policy_writer", "admin"],
-    "assessor": ["assessor", "admin"],
-    "digest": ["compliance_officer", "admin"],
-}
+from typing import List
 
 
-def has_role_access(endpoint: str, role: str) -> bool:
-    allowed = ENDPOINT_ROLE_MAP.get(endpoint, [])
-    return role in allowed
+class RoleGuard:
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+
+    def verify_role_access(self, user_role: str) -> bool:
+        """
+        Validates whether the user's role is authorized to invoke a particular endpoint/agent.
+        """
+        return user_role in self.allowed_roles

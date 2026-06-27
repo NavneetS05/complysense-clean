@@ -1,7 +1,8 @@
-# Use: AI agent implementing RAG Q&A for the Read-Only Assessor.
+# Use: Read-only assessor Q&A and framework interpretation.
 
 from ai_service.agents.base import BaseAgent
 
 
 class AssessorAgent(BaseAgent):
-    pass
+    def __init__(self):
+        super().__init__(role="read_only_assessor")

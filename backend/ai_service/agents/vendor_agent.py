@@ -1,7 +1,8 @@
-# Use: AI agent performing risk and clause checks on uploaded vendor contracts.
+# Use: Vendor agreement, SOC2, DPA and contract analysis.
 
 from ai_service.agents.base import BaseAgent
 
 
 class VendorAgent(BaseAgent):
-    pass
+    def __init__(self):
+        super().__init__(role="vendor_reviewer")

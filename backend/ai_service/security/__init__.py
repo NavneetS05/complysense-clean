@@ -1,7 +1,7 @@
-from __future__ import annotations
+# Use: Exports security helpers.
 
-from ai_service.security.sanitizer import sanitize_input
-from ai_service.security.response_validator import validate_response
-from ai_service.security.guards import has_role_access
+from ai_service.security.guards import RoleGuard
+from ai_service.security.sanitizer import InputSanitizer
+from ai_service.security.response_validator import OutputValidator
 
-__all__ = ["sanitize_input", "validate_response", "has_role_access"]
+__all__ = ["RoleGuard", "InputSanitizer", "OutputValidator"]

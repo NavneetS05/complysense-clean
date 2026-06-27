@@ -1,0 +1,89 @@
+ai_service/                                  # AI Microservice (FastAPI, Port 8001)
+│
+├── __init__.py                              # Marks ai_service as a Python package.
+│
+├── config.py                                # Centralized AI configuration (LLM, embeddings, FAISS, BM25, Supabase, token budgets, thresholds).
+│
+├── main.py                                  # FastAPI entry point, lifespan startup, loads indices, initializes services, registers routers.
+│
+├── agents/                                  # Business capability layer. Each agent defines task workflow while sharing the same RAG pipeline.
+│   ├── __init__.py                          # Exports all available AI agents.
+│   ├── base.py                              # Base agent implementing the shared RAG orchestration flow.
+│   ├── assessor_agent.py                    # Read-only assessor Q&A and framework interpretation.
+│   ├── audit_agent.py                       # Smart evidence sampling and audit observation drafting.
+│   ├── compliance_agent.py                  # Compliance gap analysis and regulatory obligation checking.
+│   ├── policy_agent.py                      # Policy conflict detection and policy drafting assistance.
+│   ├── security_agent.py                    # CERT-In reporting, incident analysis and security guidance.
+│   └── vendor_agent.py                      # Vendor agreement, SOC2, DPA and contract analysis.
+│
+├── prompts/                                 # Prompt building components.
+│   ├── __init__.py                          # Exports prompt builders and prompt templates.
+│   ├── system.py                            # Global system prompt defining AI behaviour and non-negotiable rules.
+│   ├── role_contexts.py                     # Role-specific context injected before retrieved knowledge.
+│   ├── output_rules.py                      # Formatting rules, citation requirements and response style.
+│   └── tasks/                               # Task-specific prompt instructions.
+│       ├── __init__.py
+│       ├── assessor.py                      # Assessor task instructions.
+│       ├── audit.py                         # Audit workflow prompts.
+│       ├── compliance.py                    # Compliance reasoning prompts.
+│       ├── policy.py                        # Policy drafting prompts.
+│       ├── security.py                      # Security incident prompts.
+│       ├── vendor.py                        # Vendor review prompts.
+│       ├── digest.py                        # Morning digest generation prompts.
+│       └── dept.py                          # Department-specific control translation prompts.
+│
+├── rag/                                     # Complete Retrieval-Augmented Generation pipeline.
+│   │
+│   ├── knowledge_base/                      # Local Markdown knowledge base (fallback if Supabase unavailable).
+│   │   └── .gitkeep
+│   │
+│   ├── indexing/                            # Offline indexing pipeline.
+│   │   ├── __init__.py                      # Exports indexing utilities.
+│   │   ├── markdown_loader.py               # Loads Markdown documents from Supabase Storage or local fallback.
+│   │   ├── metadata_builder.py              # Generates document/chunk metadata (framework, section, role, references, keywords).
+│   │   ├── atomic_chunker.py                # Splits Markdown into Atomic Units while preserving legal and semantic boundaries.
+│   │   ├── embeddings.py                    # Creates embedding vectors for chunks.
+│   │   ├── faiss_store.py                   # Builds, persists and loads dense FAISS vector index.
+│   │   ├── bm25_store.py                    # Builds and persists sparse BM25 keyword index.
+│   │   └── index_builder.py                 # Complete indexing pipeline orchestrator (Markdown → Metadata → Chunk → Embedding → Indices).
+│   │
+│   ├── retrieval/                           # Online retrieval pipeline executed for every query.
+│   │   ├── __init__.py
+│   │   ├── query_classifier.py              # Detects lookup, gap analysis, vendor review or other supported query types.
+│   │   ├── hybrid_retriever.py              # Performs BM25 + FAISS retrieval.
+│   │   ├── rrf.py                           # Reciprocal Rank Fusion to merge dense and sparse retrieval results.
+│   │   ├── cross_reference.py               # Injects explicitly linked sections into retrieved context.
+│   │   ├── confidence.py                    # Rejects retrieval when similarity/confidence falls below threshold.
+│   │   └── context_builder.py               # Assembles final retrieval context while respecting token budget.
+│   │
+│   └── generation/                          # Prompt assembly and response validation.
+│       ├── __init__.py
+│       ├── prompt_builder.py                # Builds the final prompt (system + role + history + retrieved chunks + task).
+│       ├── conversation.py                  # Manages conversation history, trimming and token-aware context inclusion.
+│       ├── citation_validator.py            # Verifies that cited framework sections actually exist in retrieved context.
+│       └── response_validator.py            # Final output validation, hallucination checks and safety validation.
+│
+├── routers/                                 # FastAPI route definitions.
+│   ├── __init__.py                          # Registers all AI routers.
+│   ├── assessor.py                          # Assessor endpoints.
+│   ├── audit.py                             # Audit endpoints.
+│   ├── compliance.py                        # Compliance endpoints.
+│   ├── dept.py                              # Department helper endpoints.
+│   ├── digest.py                            # Daily digest endpoints.
+│   ├── policy.py                            # Policy endpoints.
+│   ├── security.py                          # Security endpoints.
+│   ├── vendor.py                            # Vendor analysis endpoints.
+│   └── admin.py                             # Admin endpoints (re-indexing, health, AI diagnostics, cache management).
+│
+├── security/                                # AI-specific security layer.
+│   ├── __init__.py                          # Exports security helpers.
+│   ├── guards.py                            # Role-based authorization checks before AI execution.
+│   ├── sanitizer.py                         # Prompt injection and malicious input sanitization.
+│   └── response_validator.py                # Output safety validation, jailbreak detection and policy enforcement.
+│
+└── utils/                                   # Shared helper utilities.
+    ├── __init__.py
+    ├── token_counter.py                     # Counts prompt and completion tokens for budgeting and analytics.
+    ├── llm.py                               # Wrapper around Gemini (future provider abstraction for OpenAI/Claude/Ollama).
+    ├── logger.py                            # Centralized structured logging.
+    └── constants.py                         # Shared constants, thresholds and reusable enums.
