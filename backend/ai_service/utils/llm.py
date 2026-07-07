@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 
 class LLMService:
@@ -37,5 +38,19 @@ class LLMService:
           - "gemini-2.5-pro"    → reserved for future heavy reasoning if needed
         """
         client = self.get_client(model)
-        # Placeholder: convert messages → LangChain format and invoke
-        return ""
+        lc_messages = []
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "system":
+                lc_messages.append(SystemMessage(content=content))
+            elif role == "user":
+                lc_messages.append(HumanMessage(content=content))
+            elif role in ("assistant", "model"):
+                lc_messages.append(AIMessage(content=content))
+            else:
+                lc_messages.append(HumanMessage(content=content))
+                
+        response = await client.ainvoke(lc_messages)
+        return str(response.content)
+

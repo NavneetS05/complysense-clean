@@ -132,11 +132,20 @@ export default function AdminDashboard() {
   async function handleGenerateRiskHeatmap() {
     setAiLoading(true);
     try {
-      const res = await api.get("/api/v1/institutions/dashboard");
-      setAiRisks(res.data.ai_risks ?? []);
-      setAiGenTime("Just now");
+      const res = await api.post("/api/v1/ai/admin/risk-heatmap", {});
+      // The AI endpoint returns { ai_risks: [...], raw_response: {...} }
+      const risks = res.data?.ai_risks ?? res.data?.ai_risks ?? [];
+      if (Array.isArray(risks) && risks.length > 0) {
+        setAiRisks(risks as AIRisk[]);
+        setAiGenTime(new Date().toLocaleTimeString());
+      } else {
+        // Fallback: re-fetch dashboard static risks
+        const dashRes = await api.get("/api/v1/institutions/dashboard");
+        setAiRisks(dashRes.data.ai_risks ?? []);
+        setAiGenTime("Just now");
+      }
     } catch {
-      // keep the existing list if refresh fails
+      // Keep existing list if refresh fails; surface nothing to user
     }
     setAiLoading(false);
   }

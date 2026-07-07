@@ -47,6 +47,10 @@ def build_api_router() -> APIRouter:
     api_router.include_router(audit.router)
     api_router.include_router(notifications.router)
     api_router.include_router(calendar.router)
+
+    from app.routers.ai import build_ai_router
+    api_router.include_router(build_ai_router(), prefix="/ai")
+
     return api_router
 
 

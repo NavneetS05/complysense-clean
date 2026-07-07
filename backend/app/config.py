@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
 
     main_api_url: str = "http://localhost:8000"
+    ai_service_url: str = "http://localhost:8001"
     openai_api_key: str | None = None
 
     frontend_url: str = "http://localhost:5173"

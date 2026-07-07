@@ -461,7 +461,7 @@ input, textarea, select {
 /* ============================================================
    Page Shell
    ============================================================ */
-.page-shell {}
+/* .page-shell {} */
 
 .page-shell-header {
   display: flex;
@@ -470,7 +470,7 @@ input, textarea, select {
   margin-bottom: 24px;
 }
 
-.page-shell-title-block {}
+/* .page-shell-title-block {} */
 
 .breadcrumb {
   display: flex;
