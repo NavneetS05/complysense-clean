@@ -100,6 +100,17 @@ class AuthService:
         )
         await self.session.commit()
 
+        self.mail.send_message(
+            to_email=str(new_user["email"]),
+            subject="ComplySense — Welcome to your account",
+            template_key="welcome",
+            context={
+                "full_name": str(new_user["full_name"]),
+                "login_url": f"{self.settings.frontend_url}/login",
+                "temporary_password": "Use the password you chose during registration",
+            },
+        )
+
         context = UserContext(
             user_id=str(new_user["user_id"]),
             institution_id=str(new_user["institution_id"]),

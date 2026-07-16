@@ -11,12 +11,14 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
 from app.repositories.audit import AuditLogRepository
 from app.routers.audit import create_audit_report_entry
 from app.schemas.auth import UserContext
+from app.services.mail_service import MailService
 
 router = APIRouter(prefix="/policies", tags=["policies"])
 

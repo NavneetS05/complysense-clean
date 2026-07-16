@@ -14,7 +14,15 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_version: str = "v1"
     log_level: str = "INFO"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: str | list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @classmethod
+    def _parse_list_value(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     database_url: PostgresDsn
 
@@ -48,10 +56,8 @@ class Settings(BaseSettings):
 
     @field_validator("cors_origins", mode="before")
     @classmethod
-    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
+    def parse_cors_origins(cls, value: str | list[str] | None) -> list[str]:
+        return cls._parse_list_value(value)
 
 
 @lru_cache

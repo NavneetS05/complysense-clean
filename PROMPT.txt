@@ -1,186 +1,168 @@
-Analyze the entire codebase and generate a comprehensive AI Module Technical Inventory as a markdown document.
+# Prompt: Improve ComplySense Knowledge Base, RAG Pipeline, Routing Layer, and Document Access
 
-This document is intended for implementation planning and should become the single reference for understanding how the AI module currently works and what still needs to be implemented.
+You are working on the **ComplySense** backend AI architecture. Your task is **not to redesign the existing architecture**, but to strengthen and complete it while preserving all existing functionality.
 
-Do not summarize the repository. Instead, inspect the actual code and report concrete findings.
+The goal is to make the Retrieval-Augmented Generation (RAG) pipeline secure, deterministic, metadata-aware, and capable of retrieving precise regulatory references without exposing unauthorized information.
 
-The document should include the following sections.
+---
 
-1. Overall AI Architecture
+## Existing Knowledge Base Structure
 
-Describe the current AI architecture as implemented in the repository.
+The fallback knowledge base must always preserve the following directory structure exactly:
 
-Include:
+```text
+knowledge-base/
 
-Main backend
-AI service
-Frontend
-Authentication flow
-RBAC flow
-Request flow
-RAG flow
-Database flow
-Storage flow
+    dpdp/
+        dpdp.md
 
-Show the actual implementation, not assumptions.
+    cert-in/
+        CERT_IN_Directions.md
 
-2. Directory Map
+    iso27001/
+        ISO-27001.md
 
-List every AI-related file grouped by module.
+    ugc/
+        UGC_Guidelines.md
 
-Example:
+    naac/
+        naac.md
 
-backend/...
-ai_service/...
-frontend/...
-shared/
-utils/
-prompts/
-ingestion/
-embeddings/
-validators/
+    nist/
+        nist_cisf.md
+```
 
-For every file include:
+If the system is connected to Supabase Storage, the same logical folder hierarchy must also exist there.
 
-purpose
-current implementation status
-important exported classes/functions
-3. AI Endpoints
+The application should treat both sources identically.
 
-Create a table containing every AI endpoint.
+---
 
-For each endpoint include:
+# Source Priority
 
-Route
-HTTP method
-Router file
-Handler
-Request model
-Response model
-Authentication
-RBAC permission
-Calls AI service?
-Calls RAG?
-Current implementation status
-Missing implementation
-4. AI Service Inventory
+The retrieval order must be:
 
-Inspect every AI service.
+1. Supabase Storage (Primary)
+2. Local knowledge-base directory (Fallback)
 
-For each service include:
+If Supabase is unavailable, inaccessible, times out, or returns an error, automatically switch to the local fallback without requiring user intervention.
 
-purpose
-imported modules
-helper functions
-prompt used
-RAG usage
-vector search
-response validation
-output schema
-dependencies
-5. Database Inventory
+This fallback should be transparent.
 
-Inspect every AI-related database interaction.
+---
 
-Separate into:
+# Synchronization Requirement
 
-PostgreSQL
+The folder structure in Supabase and the local knowledge-base directory must remain identical.
 
-For every table used:
+The loader should verify:
 
-table name
-purpose
-read operations
-insert operations
-update operations
-delete operations
-joins
-foreign keys used
-repositories/services accessing it
-MongoDB
+* folders exist
+* expected markdown files exist
+* filenames match
+* metadata can be parsed
+* document loading succeeds
 
-For every collection:
+Raise warnings for missing documents but do not crash the system.
 
-collection name
-purpose
-document structure
-insert/update/read/delete operations
-indexes
-references
+---
 
-Clearly indicate unused collections if they exist.
+# Metadata-Based Access Control
 
-6. Query Inventory
+Every markdown file already contains metadata at the top.
 
-List every database query used by AI.
+That metadata is authoritative.
 
-Include:
+Never ignore it.
 
-file
-function
-tables involved
-joins
-filters
-ordering
-aggregation
-returned fields
+Use metadata for:
 
-Highlight:
+* allowed user roles
+* institution restrictions
+* framework
+* document visibility
+* retrieval eligibility
+* document identifiers
+* version information
+* publication details (if available)
 
-duplicate queries
-inefficient queries
-missing indexes
-N+1 risks
-7. Knowledge Base
+Before retrieval, evaluate metadata.
 
-Describe the current knowledge base implementation.
+If the user is not authorized, the document must never be retrieved, embedded, reranked, or passed to the LLM.
 
-Include:
+Unauthorized documents should effectively not exist for that request.
 
-document source
-Supabase Storage usage
-ingestion pipeline
-chunking
-embedding generation
-vector storage
-retrieval
-metadata
-versioning
-update flow
+---
 
-List every related file.
+# Routing Layer
 
-8. RAG Pipeline
+The routing layer executes before retrieval.
 
-Describe the complete execution flow.
+Its responsibilities include:
 
-Include every step from:
+* determining which compliance framework(s) are relevant
+* filtering inaccessible documents using metadata
+* selecting the minimum required documents
+* preventing unnecessary retrieval
+* supporting multi-framework queries when needed
 
-User Request
+Examples:
+
+DPDP question
+→ route only to DPDP
+
+ISO audit checklist
+→ ISO only
+
+NAAC accreditation
+→ NAAC only
+
+UGC policy
+→ UGC only
+
+CERT-In incident reporting
+→ CERT-In only
+
+Questions involving multiple frameworks
+→ retrieve only the required frameworks.
+
+Never search the full corpus when routing can narrow the search.
+
+---
+
+# Retrieval Pipeline
+
+The retrieval pipeline should be:
+
+User Query
 
 ↓
 
-Backend
+Intent Detection
 
 ↓
 
-AI Service
+Metadata Filtering
 
 ↓
 
-Retriever
+Routing Layer
 
 ↓
 
-Embeddings
+Document Selection
 
 ↓
 
-Vector Search
+Semantic Chunking
 
 ↓
 
-Prompt Construction
+Embedding Search
+
+↓
+
+Contextual Reranking
 
 ↓
 
@@ -188,165 +170,243 @@ LLM
 
 ↓
 
-Validation
+Grounded Response
 
-↓
+No stage should bypass metadata filtering.
 
-Response
+---
 
-Include all files involved.
+# Chunking
 
-9. Imports & Dependencies
+Implement semantic/context-aware chunking.
 
-Generate a dependency map.
+Avoid naive fixed-size splitting.
 
-For every AI module include:
+Chunk boundaries should preserve:
 
-imports
-internal dependencies
-shared utilities
-services used
-repositories used
-models used
-circular dependencies if any
-10. Authentication & RBAC
+* chapters
+* sections
+* subsections
+* headings
+* lists
+* tables
+* bullet hierarchy
 
-For every AI endpoint identify:
+Each chunk should carry metadata such as:
 
-authentication middleware
-RBAC middleware
-permissions required
-tenant isolation
-organization filtering
-11. Validation
+* document name
+* framework
+* chapter
+* section
+* subsection
+* page number (if available)
+* source path
+* version
 
-List every validation layer.
+Every retrieved chunk must retain this metadata throughout the pipeline.
 
-Include:
+---
 
-frontend validation
-backend validation
-DTOs
-Pydantic models
-business validation
-response validator
-12. Prompt Inventory
+# Grounded Citations
 
-List every AI prompt.
+Responses should identify where information came from.
 
-For each prompt include:
+Whenever possible, cite:
 
-file
-purpose
-variables
-system prompt
-user prompt
-output format
-13. Models
-
-List every request/response model.
-
-Include:
-
-Pydantic models
-dataclasses
-DTOs
-serializers
-14. Configuration
-
-List every configuration used by the AI module.
-
-Include:
-
-environment variables
-API keys
-model names
-embedding model
-chunk size
-overlap
-vector dimensions
-storage locations
-15. Current Implementation Status
-
-For every AI feature provide:
-
-Fully implemented
-Partially implemented
-Stubbed
-Not implemented
-
-Explain why.
-
-16. Missing Pieces
-
-Identify everything required to complete the AI module.
-
-Include:
-
-missing APIs
-missing frontend
-missing backend
-missing DB operations
-missing MongoDB integration
-missing PostgreSQL operations
-missing RAG integration
-missing validation
-missing authentication
-missing RBAC
-missing caching
-missing logging
-missing error handling
-17. Cross References
-
-For every AI feature create a dependency chain.
+* framework
+* document
+* chapter
+* section
+* subsection
+* page number
 
 Example:
 
-Compliance Triage
+"According to ISO 27001, Clause 5.2 (Page 18)..."
 
-↓
+or
 
-Frontend Component
+"DPDP Act — Chapter III — Section 8..."
 
-↓
+The response should never fabricate citations.
 
-Backend Router
+If page information is unavailable, omit it.
 
-↓
+---
 
-Service
+# Security Requirements
 
-↓
+The RAG system must never retrieve unauthorized content.
 
-Database Query
+This includes:
 
-↓
+* embedding search
+* reranking
+* context assembly
+* final prompt
 
-RAG
+Access control happens before retrieval.
 
-↓
+No unauthorized chunk should reach the LLM.
 
-Prompt
+---
 
-↓
+# Prompt Improvements
 
-LLM
+Review and improve:
 
-↓
+* system prompts
+* task prompts
+* routing prompts
+* retrieval prompts
+* citation prompts
 
-Validator
+Goals:
 
-↓
+* reduce hallucinations
+* improve deterministic routing
+* improve citation quality
+* enforce metadata restrictions
+* prevent unauthorized document usage
+* ensure framework-specific responses
 
-Response
+Do not remove existing functionality.
 
-↓
+Improve it while remaining compatible.
 
-Frontend Rendering
+---
 
-Output Requirements
-Base everything on the actual repository.
-Do not assume implementation that does not exist.
-Clearly distinguish between implemented, partially implemented, and missing functionality.
-Reference actual files, methods, classes, and functions.
-Produce this as a markdown document suitable for future implementation work.
+# Supabase Integration
+
+Review the Supabase implementation.
+
+Verify:
+
+* connection handling
+* authentication
+* storage access
+* folder traversal
+* markdown loading
+* metadata parsing
+* caching
+* retry strategy
+* graceful failure handling
+
+If Supabase becomes unavailable:
+
+* automatically switch to the local knowledge-base directory
+* continue serving requests
+* log the reason for fallback
+
+---
+
+# Local Knowledge Base
+
+Ensure the local fallback uses exactly:
+
+```text
+knowledge-base/
+
+    dpdp/
+        dpdp.md
+
+    cert-in/
+        CERT_IN_Directions.md
+
+    iso27001/
+        ISO-27001.md
+
+    ugc/
+        UGC_Guidelines.md
+
+    naac/
+        naac.md
+
+    nist/
+        nist_cisf.md
+```
+
+Do not change this structure.
+
+All loaders should assume this directory layout.
+
+---
+
+# Validation & Testing
+
+Implement automated tests covering both Supabase and local storage.
+
+Tests should verify:
+
+### Document Discovery
+
+* all expected folders are found
+* all markdown files are detected
+* metadata is parsed correctly
+
+### Routing
+
+Verify framework-specific queries retrieve only the intended documents.
+
+Examples:
+
+* DPDP query → DPDP only
+* ISO query → ISO only
+* UGC query → UGC only
+* Multi-framework query → only relevant frameworks
+
+### Metadata Restrictions
+
+Create tests where:
+
+* an authorized user receives the document
+* an unauthorized user does not
+* unauthorized chunks never enter retrieval
+
+### Fallback
+
+Simulate:
+
+* Supabase offline
+* network timeout
+* authentication failure
+* missing bucket
+* missing file
+
+Ensure retrieval automatically switches to the local knowledge-base directory.
+
+### Citation Validation
+
+Verify every answer references the correct:
+
+* framework
+* document
+* chapter
+* section
+* subsection
+* page (when available)
+
+### Retrieval Accuracy
+
+Ensure routing selects the correct document in both storage modes.
+
+Results from:
+
+* Supabase
+* local knowledge-base
+
+should remain functionally equivalent for identical documents.
+
+---
+
+# Constraints
+
+* Preserve the existing architecture unless a change is necessary.
+* Do not remove existing features.
+* Maintain backward compatibility.
+* Keep metadata as the authoritative source for access control.
+* Ensure deterministic routing before retrieval.
+* Never expose unauthorized knowledge.
+* Keep Supabase as the primary source and the local knowledge-base as the automatic fallback.
+* Ensure both storage backends use the exact same directory hierarchy and produce identical retrieval behavior.
+* Prefer maintainable, modular, and testable implementations with clear separation of routing, authorization, retrieval, reranking, and response generation.

@@ -12,12 +12,14 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
 from app.mongodb import get_mongo_database
 from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
+from app.services.mail_service import MailService
 from app.storage.documents import DocumentStore
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
@@ -206,6 +208,22 @@ async def upload_evidence(
             },
             extracted_text=extracted_text,
         )
+        uploader_row = await session.execute(
+            text("select email from users where user_id = :user_id and institution_id = :inst_id"),
+            {"user_id": user_ctx.user_id, "inst_id": user_ctx.institution_id},
+        )
+        uploader = uploader_row.mappings().first()
+        if uploader:
+            MailService().send_message(
+                to_email=str(uploader["email"]),
+                subject="ComplySense — Your evidence was uploaded",
+                template_key="workflow",
+                context={
+                    "title": "Evidence uploaded",
+                    "message": f"Your evidence file {safe_name} is now pending review.",
+                    "action_url": f"{get_settings().frontend_url}/evidence",
+                },
+            )
         await AuditLogRepository(session).write(
             institution_id=user_ctx.institution_id,
             user_id=user_ctx.user_id,
@@ -268,6 +286,22 @@ async def review_evidence(
     if not row:
         raise HTTPException(status_code=404, detail="Pending evidence not found")
     action_type = f"evidence_{payload.approval_status}"
+    uploader_row = await session.execute(
+        text("select email from users where user_id = :user_id and institution_id = :inst_id"),
+        {"user_id": user_ctx.user_id, "inst_id": user_ctx.institution_id},
+    )
+    uploader = uploader_row.mappings().first()
+    if uploader:
+        MailService().send_message(
+            to_email=str(uploader["email"]),
+            subject="ComplySense — Evidence review completed",
+            template_key="workflow",
+            context={
+                "title": "Evidence review complete",
+                "message": f"Your evidence submission was {payload.approval_status.value}.",
+                "action_url": f"{get_settings().frontend_url}/evidence",
+            },
+        )
     await AuditLogRepository(session).write(
         institution_id=user_ctx.institution_id,
         user_id=user_ctx.user_id,

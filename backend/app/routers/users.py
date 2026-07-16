@@ -8,11 +8,13 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.permissions import require_permission
 from app.core.security import hash_password
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
 from app.schemas.auth import UserContext
+from app.services.mail_service import MailService
 
 router = APIRouter(prefix="/users", tags=["users"])
 

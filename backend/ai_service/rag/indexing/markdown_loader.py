@@ -21,12 +21,12 @@ FRAMEWORK_MAPPING = {
 }
 
 FILES_TO_DOWNLOAD: List[tuple] = [
-    ("dpdp", "dpdp/DPDP_Act.md"),
+    ("dpdp", "dpdp/dpdp.md"),
     ("cert-in", "cert-in/CERT_IN_Directions.md"),
-    ("iso27001", "iso27001/ISO27001_2022.md"),
+    ("iso27001", "iso27001/ISO-27001.md"),
     ("ugc", "ugc/UGC_Guidelines.md"),
-    ("naac", "naac/NAAC_Framework.md"),
-    ("nist", "nist/NIST_CSF.md"),
+    ("naac", "naac/naac.md"),
+    ("nist", "nist/nist_cisf.md"),
 ]
 
 
@@ -192,7 +192,8 @@ class MarkdownLoader:
     def __init__(self, use_supabase: bool = True):
         self.use_supabase = use_supabase
         self.settings = get_ai_settings()
-        self.local_kb_dir = Path(__file__).resolve().parents[2] / "knowledge_base"
+        self.local_kb_dirs = self._resolve_local_kb_dirs()
+        self.local_kb_dir = self.local_kb_dirs[0]
 
     def load_documents(self) -> List[Dict[str, Any]]:
         """
@@ -209,7 +210,8 @@ class MarkdownLoader:
             "source": str,
         }
         """
-        self.local_kb_dir.mkdir(parents=True, exist_ok=True)
+        for kb_dir in self.local_kb_dirs:
+            kb_dir.mkdir(parents=True, exist_ok=True)
         local_files = self._scan_local()
 
         if not local_files and self.use_supabase:
@@ -263,9 +265,37 @@ class MarkdownLoader:
 
     # ── Private ────────────────────────────────────────────────────────────────
 
+    def _resolve_local_kb_dirs(self) -> List[Path]:
+        """Return all supported local knowledge-base roots for compatibility."""
+        repo_root = Path(__file__).resolve().parents[4]
+        candidates = [
+            repo_root / "knowledge-base",
+            repo_root / "knowledge_base",
+            Path(__file__).resolve().parents[2] / "knowledge-base",
+            Path(__file__).resolve().parents[2] / "knowledge_base",
+        ]
+        unique: List[Path] = []
+        seen = set()
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved in seen:
+                continue
+            unique.append(resolved)
+            seen.add(resolved)
+        return unique
+
     def _scan_local(self) -> List[Path]:
-        """Returns all .md files recursively under knowledge_base/."""
-        return [p for p in self.local_kb_dir.glob("**/*.md") if p.is_file()]
+        """Returns all .md files recursively under all local knowledge-base roots."""
+        files: List[Path] = []
+        seen = set()
+        for kb_dir in self.local_kb_dirs:
+            if not kb_dir.exists():
+                continue
+            for path in kb_dir.glob("**/*.md"):
+                if path.is_file() and path not in seen:
+                    files.append(path)
+                    seen.add(path)
+        return files
 
     def _download_from_supabase(self) -> None:
         bucket = self.settings.supabase_knowledge_bucket

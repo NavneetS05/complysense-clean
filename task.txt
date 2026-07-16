@@ -1,43 +1,96 @@
-Phase 4: Super Admin Portal
- Global Health Dashboard (/super-admin/dashboard)
- Anomaly banner, platform stats cards, institution status table, and recent audit logs
- Tenant Manager (/super-admin/tenants)
- Directory table, activate/deactivate toggle, and Add Institution modal
- Institution Detail (/super-admin/tenants/:institution_id)
- View users, departments, and localized audit logs
- Audit Trail Explorer (/super-admin/audit-trail)
- Filterable list (date ranges, user names, actions) and CSV download endpoint
- Roles & Permissions reference page (/super-admin/roles)
+Implementation Plan
 
-Phase 5: Institution Admin Portal
- Dashboard & Risk Scorecard (/admin/dashboard)
- Readiness indicators, department compliances, and risk prediction trigger
- Department Manager (/admin/departments)
- CRUD directory, assign reviewer dialog, activation toggle
- User Lifecycle (/admin/users)
- User table directory, deactivate, trigger password reset, add/edit user dialogs
- Compliance Calendar (/admin/calendar)
- Month/list views, filter event chips, add event modal
- Executive Reports page (/admin/reports)
- Generate report (spinner), list past reports
+1. Implement notifications backend.
 
-Phase 6: Compliance Officer Workstation
- Command Dashboard (/compliance/dashboard)
- Donut chart, AI Triage panel (runs prompt execution), priority checklists
- Control Kanban (/compliance/controls)
- 5 status columns, drag-and-drop actions, filter widgets
- Control Detail (/compliance/controls/:assignment_id)
- Framework definition cards, upload zone, notes list, timeline log
- Gap Matrix (/compliance/gaps)
- Severity grid table, detail drawer, mitigation task launcher
- Evidence Queue (/compliance/evidence-queue)
- Verification table list, PDF preview panel inside drawer, rejection modal
- Assessment Runner (/compliance/assessments/:assessment_id)
- List of runs, paginated control questionnaire runner, auto-save state
- Policy Manager & Editor (/compliance/policies)
- Registry list, split view digital policy text editor with AI Copilot wizard and validation checker
+- Create `backend/app/repositories/notification.py` with:
+  - `NotificationRepository.__init__(self, session)`
+  - `create(...)` matching the provided contract insert SQL
+  - `list_for_user(...)` matching the provided contract select SQL
+  - `unread_count(...)` matching the provided contract count SQL
+  - `mark_all_read(...)` matching the provided contract update SQL
 
-Phase 7: Verification and Cleanup
- Write stubs for the remaining 6 roles
- Validate entire routing configurations
- Document final implementations in walkthrough.md
+- Update `backend/app/routers/notifications.py` to add two handlers:
+  - `@router.get("", summary="List notifications for the current user")`
+    - query params: `limit: int = 10`, `unread: bool = False`
+    - permission: `require_permission(PermissionKey.VIEW_NOTIFICATIONS)`
+    - call `NotificationRepository(session).list_for_user(...)`
+    - call `NotificationRepository(session).unread_count(...)`
+    - return `{ "notifications": notifications, "unread_count": unread_count }`
+    - ensure returned row fields match contract exactly, including `notification_id`, `title`, `message`, `notification_type`, `related_entity_type`, `related_entity_id`, `is_read`, `created_at`
+  - `@router.patch("/read-all", summary="Mark all notifications as read for current user")`
+    - permission: `require_permission(PermissionKey.VIEW_NOTIFICATIONS)`
+    - call `NotificationRepository(session).mark_all_read(...)`
+    - `await session.commit()`
+    - return `{ "message": "ok" }`
+
+- Use `PermissionKey.VIEW_NOTIFICATIONS`; it already exists in `backend/app/domain/rbac.py`, so no new permission key is needed.
+
+2. Wire notification creation into existing write paths.
+
+- Identify and update the main event sources where user-facing notifications should be generated, using `NotificationRepository(session).create(...)` in the same transaction as the existing write.
+
+  High-priority wiring points:
+  - `backend/app/routers/tasks.py` after task create / before `session.commit()`
+    - recipient: assigned user
+    - type: `task_assigned`
+    - related_entity_type: `task`
+  - `backend/app/routers/vendor.py` after `vendor_risk_assessments` insert and before `session.commit()`
+    - recipient: vendor reviewer or assigned reviewer
+    - type: `vendor_risk_flagged`
+    - related_entity_type: `vendor_risk_assessment`
+  - `backend/app/routers/controls.py` where control assignments are created
+    - recipient: assigned user
+    - type: `control_assigned`
+    - related_entity_type: `control_assignment`
+  - `backend/app/routers/evidence.py` where evidence is submitted, approved, rejected
+    - recipient: evidence uploader or reviewer depending on event
+    - types: `evidence_submitted`, `evidence_approved`, `evidence_rejected`
+    - related_entity_type: `evidence`
+  - `backend/app/routers/incidents.py` where incidents are created or assigned
+    - recipient: assigned IT security officer
+    - type: `incident_logged`
+    - related_entity_type: `incident`
+
+- Note: deadline-based events (`cert_in_deadline_warning`, `task_overdue`) require a scheduler. This repo has no confirmed scheduler wiring yet, so those remain a later infra dependency.
+
+3. Enforce the AI response contract.
+
+- Make the `execute()` contract the source of truth for AI responses.
+- Optionally add route `response_model` enforcement in AI service routers to make the contract explicit.
+  - Create a shared Pydantic schema for `{ role, response, citations, query_type?, chunks_used?, error? }`
+  - Use `response_model=AIResponse` and `response_model_exclude_none=True` on AI router endpoints
+  - For `policy/analyze/{policy_id}`, use a nested composite model with `executive_summary: AIResponse` and `conflicts: AIResponse`
+
+- Keep the current semantics of `error`-key presence vs absence:
+  - success path: `role, response, citations, query_type, chunks_used`
+  - error branches: `role, response, citations, error`
+  - no `chunks_used` on error branches
+  - no `query_type` on success-less "not covered" branch if configured
+
+- Review `backend/app/routers/ai/vendor.py` extraction helpers.
+  - `result.get("risk_level")`, `result.get("severity")`, and `result.get("dpdp_compliant")` are not part of the shared `execute()` contract.
+  - If structured fields are required, implement them explicitly in `execute()` or add a separate structured extraction layer; otherwise treat those values as heuristic from free text.
+
+4. Testing and validation.
+
+- Add unit tests for `NotificationRepository` CRUD methods.
+- Add integration tests for:
+  - `GET /api/v1/notifications?limit=10&unread=true`
+  - `PATCH /api/v1/notifications/read-all`
+  - notification creation on one or more write paths (task create, vendor risk assessment, evidence status change)
+- Add contract regression tests for AI route output shape if `response_model` is implemented.
+
+5. Execution order.
+
+- First implement `NotificationRepository` and the two notification endpoints.
+- Then implement one high-value notification writer path (task assignment or vendor risk flag) to prove the flow.
+- Then extend notification creation to the other event sources.
+- Finally, add AI response-model enforcement and update any vendor-specific contract assumptions.
+
+Summary
+
+- `backend/app/routers/notifications.py` is currently empty and is the main blocker.
+- `PermissionKey.VIEW_NOTIFICATIONS` already exists, so endpoint gating is ready.
+- Notification table schema is already available in `schema.sql`; no migration needed.
+- AI response contract is confirmed in `backend/ai_service/agents/base.py`; enforcement is the next implementation step, not a new design.
+- The next move is to start coding the notification repo + endpoints, then wire event creation and optional AI response validation.
