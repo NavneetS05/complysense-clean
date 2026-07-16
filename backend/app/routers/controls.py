@@ -1,8 +1,14 @@
 # Use: Router managing control assignments and their operational status.
+# Phase 2: list_controls and get_control_detail now merge MongoDB control definitions
+#           (control_title, description, evidence_requirements) from ControlLibraryStore
+#           into the existing Postgres assignment payload.
+#           All existing response fields are preserved — this is purely additive.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,9 +19,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
+from app.mongodb import get_mongo_database
+from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
+from app.storage.control_library import ControlLibraryStore
 
 router = APIRouter(prefix="/controls", tags=["controls"])
+
+
+class ControlStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    SUBMITTED = "submitted"
+    COMPLIANT = "compliant"
+    NON_COMPLIANT = "non_compliant"
+    NA = "na"
 
 
 class CreateControlAssignmentPayload(BaseModel):
@@ -25,16 +43,48 @@ class CreateControlAssignmentPayload(BaseModel):
     department_id: str | None = None
     due_date: str | None = None
     notes: str | None = None
-    status: str = "not_started"
+    status: ControlStatus = ControlStatus.NOT_STARTED
 
 
 class UpdateControlStatusPayload(BaseModel):
-    status: str
+    status: ControlStatus
 
 
 class UpdateControlNotesPayload(BaseModel):
     note: str
 
+
+# ── Private helper ─────────────────────────────────────────────────────────────
+
+async def _fetch_mongo_def(store: ControlLibraryStore, control_id: str) -> dict[str, Any]:
+    """
+    Best-effort lookup of a control definition in MongoDB.
+    Returns an empty dict if Mongo is unavailable or the control_id is not found.
+    Keyed by ``control_id`` field on the MongoDB document (not the Mongo _id).
+    """
+    try:
+        doc = await store.find_by_control_id(control_id)
+        return doc or {}
+    except Exception:
+        return {}
+
+
+def _merge_mongo_fields(pg_row: dict[str, Any], mongo_doc: dict[str, Any]) -> dict[str, Any]:
+    """
+    Merges additive MongoDB fields into a Postgres-derived row dict.
+    Existing PG keys are never overwritten.
+    Fields added:
+        control_title       – human-readable name from the control library
+        description         – full regulatory description / requirement text
+        evidence_requirements – list of evidence types required (if present)
+    """
+    pg_row["control_title"] = mongo_doc.get("control_title") or mongo_doc.get("title") or None
+    pg_row["description"] = mongo_doc.get("description") or None
+    pg_row["evidence_requirements"] = mongo_doc.get("evidence_requirements") or []
+    return pg_row
+
+
+# ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List control assignments for the current institution")
 async def list_controls(
@@ -59,7 +109,8 @@ async def list_controls(
     """
     res = await session.execute(text(query), {"inst_id": user_ctx.institution_id})
     rows = res.mappings().all()
-    return [
+
+    pg_items: list[dict[str, Any]] = [
         {
             "assignment_id": str(row["assignment_id"]),
             "control_id": row["control_id"],
@@ -71,6 +122,27 @@ async def list_controls(
             "assigned_name": row["assigned_name"],
         }
         for row in rows
+    ]
+
+    if not pg_items:
+        return pg_items
+
+    # Batch-fetch MongoDB control definitions concurrently (best-effort).
+    store = ControlLibraryStore(get_mongo_database())
+    distinct_control_ids = list({item["control_id"] for item in pg_items})
+    mongo_docs_list = await asyncio.gather(
+        *[_fetch_mongo_def(store, cid) for cid in distinct_control_ids],
+        return_exceptions=False,
+    )
+    # Build lookup map: control_id -> mongo doc
+    mongo_map: dict[str, dict[str, Any]] = {
+        cid: doc
+        for cid, doc in zip(distinct_control_ids, mongo_docs_list)
+    }
+
+    return [
+        _merge_mongo_fields(item, mongo_map.get(item["control_id"], {}))
+        for item in pg_items
     ]
 
 
@@ -103,6 +175,16 @@ async def create_control_assignment(
         },
     )
     row = res.mappings().first()
+    if row:
+        await AuditLogRepository(session).write(
+            institution_id=user_ctx.institution_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="control_created",
+            entity_type="control_assignment",
+            entity_id=str(row["assignment_id"]),
+            action_details={"control_id": payload.control_id},
+        )
     await session.commit()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create control assignment")
@@ -148,7 +230,8 @@ async def get_control_detail(
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Control assignment not found")
-    return {
+
+    pg_response: dict[str, Any] = {
         "assignment_id": str(row["assignment_id"]),
         "control_id": row["control_id"],
         "framework_name": row["framework_name"],
@@ -161,6 +244,11 @@ async def get_control_detail(
         "assigned_name": row["assigned_name"],
         "assigned_by_name": row["assigned_by_name"],
     }
+
+    # Merge MongoDB control definition (best-effort — degraded gracefully if Mongo is down).
+    store = ControlLibraryStore(get_mongo_database())
+    mongo_doc = await _fetch_mongo_def(store, row["control_id"])
+    return _merge_mongo_fields(pg_response, mongo_doc)
 
 
 @router.patch("/{assignment_id}/status", summary="Update control assignment status")
@@ -177,10 +265,19 @@ async def update_control_status(
         returning assignment_id, status
     """
     res = await session.execute(text(query), {"assignment_id": assignment_id, "inst_id": user_ctx.institution_id, "status": payload.status})
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Control assignment not found")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="control_status_updated",
+        entity_type="control_assignment",
+        entity_id=assignment_id,
+        action_details={"status": payload.status},
+    )
+    await session.commit()
     return {"assignment_id": str(row["assignment_id"]), "status": row["status"]}
 
 
@@ -201,8 +298,16 @@ async def update_control_notes(
         returning assignment_id, notes
     """
     res = await session.execute(text(query), {"assignment_id": assignment_id, "inst_id": user_ctx.institution_id, "note_text": note_text})
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Control assignment not found")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="control_note_added",
+        entity_type="control_assignment",
+        entity_id=assignment_id,
+    )
+    await session.commit()
     return {"assignment_id": str(row["assignment_id"]), "notes": row["notes"]}

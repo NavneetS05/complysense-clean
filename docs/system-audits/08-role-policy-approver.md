@@ -26,9 +26,11 @@ Backend permissions:
 - `APPROVE_POLICIES`
 - `DRAFT_POLICIES`
 
-Issue:
+Implemented:
 
-- `backend/app/routers/policies.py::update_policy` requires `DRAFT_POLICIES`; this may not match a pure Policy Approver workflow unless seeded role permissions include drafting.
+- Explicit approve/reject endpoints require `APPROVE_POLICIES`.
+- Generic policy update rejects direct approved/rejected status changes and directs callers to the approve/reject endpoints.
+- Redrafts can carry `parent_policy_id`; backend increments `version_number` from the parent policy.
 
 ## Database Usage
 
@@ -49,13 +51,11 @@ Implemented:
 - AI service: `backend/ai_service/routers/policy.py`.
 - Agent: `PolicyAgent`.
 
-Partially Implemented:
+Implemented:
 
-- AI policy analysis route exists, but core policy approval lifecycle is stored only as status fields and direct updates in `generated_policies`.
+- AI policy analysis route exists, and approval/rejection are handled through dedicated status-transition endpoints.
 
 ## Missing Features and Improvements
 
-- Explicit approve/reject endpoints should use `APPROVE_POLICIES`.
-- Policy version history is limited to `version_number`; no separate version history table found.
+- Policy version history uses `version_number` plus `parent_policy_id`; no separate version history table exists.
 - No notification workflow for submitted/approved/rejected policies found.
-

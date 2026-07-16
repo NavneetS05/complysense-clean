@@ -27,9 +27,9 @@ Evidence:
 Operations:
 
 - Insert: `DocumentStore.save_metadata`.
-- Reads/updates/deletes: not found in inspected route layer.
+- Reads/updates/deletes: `DocumentStore.get`, `DocumentStore.update_metadata`, and `DocumentStore.delete`.
 
-Current status: Partially Implemented.
+Current status: Implemented for helper CRUD and evidence metadata/extracted-text writes.
 
 ### `control_library`
 
@@ -43,17 +43,22 @@ Evidence:
 
 Current status: Partially Implemented.
 
+Operations:
+
+- Insert/save: `ControlLibraryStore.save_control`.
+- Read: `ControlLibraryStore.find_by_control_id` and `ControlLibraryStore.get`.
+- Update/delete: `ControlLibraryStore.update_control` and `ControlLibraryStore.delete`.
+
 ## Current Usage
 
 Partially Implemented:
 
 - MongoDB health check is wired into `/health/ready`.
 - Storage abstractions exist.
-- Clear frontend-to-route-to-MongoDB workflows are limited in inspected code.
+- Evidence upload writes MongoDB document metadata and extracted text previews.
+- `ControlLibraryStore` is exported but no active route or service caller was found in the inspected code.
 
 ## Missing Implementation
 
 - No collection indexes were defined in the inspected code.
-- No complete CRUD API for documents collection was found.
-- Evidence upload writes local file metadata to PostgreSQL but does not visibly write extracted text to MongoDB in `backend/app/routers/evidence.py`.
-
+- RAG ingestion from uploaded evidence remains separate from the evidence upload path.

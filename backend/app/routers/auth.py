@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Cookie, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.deps import get_current_user
+from app.core.exceptions import UnauthorizedError
 from app.database import get_db_session
 from app.schemas.auth import (
     ExitRoleAssumptionResponse,
@@ -18,7 +20,6 @@ from app.schemas.auth import (
     MessageResponse,
     RegisterRequest,
     ResetPasswordRequest,
-    TokenRefreshRequest,
     UserContext,
     UpdateProfileRequest,
     ValidateResetTokenResponse,
@@ -26,6 +27,33 @@ from app.schemas.auth import (
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _refresh_cookie_path() -> str:
+    return f"/api/{get_settings().api_version}/auth"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=settings.refresh_cookie_name,
+        value=refresh_token,
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        path=_refresh_cookie_path(),
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie(
+        key=settings.refresh_cookie_name,
+        path=_refresh_cookie_path(),
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+    )
 
 
 @router.post(
@@ -37,6 +65,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(
     payload: RegisterRequest,
     request: Request,
+    response: Response,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LoginResponse:
     """Create a user account within an existing institution.
@@ -45,7 +74,9 @@ async def register(
     exist in the database (seeded by Super Admin or pre-provisioned).
     Returns a full token pair: the user is immediately logged in after registration.
     """
-    return await AuthService(session).register(payload, request)
+    result = await AuthService(session).register(payload, request)
+    _set_refresh_cookie(response, result.refresh_token)
+    return result.response
 
 
 @router.post(
@@ -56,6 +87,7 @@ async def register(
 async def login(
     payload: LoginRequest,
     request: Request,
+    response: Response,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> LoginResponse:
     """Authenticate with email and password.
@@ -64,7 +96,9 @@ async def login(
     - After 3 consecutive failures the account is blocked for 5 minutes.
       Each failure and the block event are recorded in ``audit_logs``.
     """
-    return await AuthService(session).login(payload, request)
+    result = await AuthService(session).login(payload, request)
+    _set_refresh_cookie(response, result.refresh_token)
+    return result.response
 
 
 @router.post(
@@ -74,6 +108,7 @@ async def login(
 )
 async def logout(
     request: Request,
+    response: Response,
     user: Annotated[UserContext, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> MessageResponse:
@@ -82,7 +117,9 @@ async def logout(
     The access token remains technically valid until it expires, but the session
     row is gone so ``get_current_user`` will reject it on the next request.
     """
-    return await AuthService(session).logout(user, request)
+    result = await AuthService(session).logout(user, request)
+    _clear_refresh_cookie(response)
+    return result
 
 
 @router.post(
@@ -91,16 +128,21 @@ async def logout(
     summary="Rotate refresh token and obtain a new token pair",
 )
 async def refresh(
-    payload: TokenRefreshRequest,
     request: Request,
+    response: Response,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    refresh_cookie: Annotated[str | None, Cookie(alias=get_settings().refresh_cookie_name)] = None,
 ) -> LoginResponse:
     """Exchange a valid refresh token for a brand-new access + refresh token pair.
 
     Refresh token rotation is applied: the existing session is deleted and a new
     session row is inserted, invalidating the previous refresh token.
     """
-    return await AuthService(session).refresh(payload, request)
+    if not refresh_cookie:
+        raise UnauthorizedError("Missing refresh token")
+    result = await AuthService(session).refresh(refresh_cookie, request)
+    _set_refresh_cookie(response, result.refresh_token)
+    return result.response
 
 
 @router.get(

@@ -47,8 +47,8 @@ Implemented:
 
 Partially Implemented:
 
-- Some routes use `get_current_user` and manually check permissions instead of `require_permission`, for example `backend/app/routers/audit.py`.
-- AI proxy routes and direct AI service routes sometimes disagree on permissions.
+- Some routes still use direct permission checks or mixed styles instead of a uniform `require_permission` dependency.
+- The remediated AI proxy/direct service routes are aligned, but future AI routes should include permission parity checks.
 
 ## Frontend Guards
 
@@ -86,4 +86,3 @@ Implemented:
 Partially Implemented:
 
 - `/rbac/matrix` contains fallback static behavior if DB mappings are missing. Useful for development, but risky if production data seeding fails because the UI can appear functional while DB authorization is incomplete.
-

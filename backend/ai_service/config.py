@@ -1,7 +1,7 @@
 # Use: Centralized AI configuration (LLM, embeddings, FAISS, BM25, Supabase, token budgets, thresholds).
 
 from functools import lru_cache
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +38,14 @@ class AISettings(BaseSettings):
     # Logging & Env
     log_level: str = "INFO"
     environment: str = "development"
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     # Token Budgets
     max_input_tokens: int = 3200

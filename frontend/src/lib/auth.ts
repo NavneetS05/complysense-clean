@@ -7,7 +7,6 @@ import type { AuthUser } from "../types/auth";
 
 export interface LoginResponse {
   access_token: string;
-  refresh_token: string;
   token_type: string;
   user: AuthUser;
 }
@@ -31,6 +30,11 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
 export async function fetchCurrentUser(): Promise<AuthUser> {
   const res = await api.get<AuthUser>("/api/v1/auth/me");
+  return res.data;
+}
+
+export async function refreshSession(): Promise<LoginResponse> {
+  const res = await api.post<LoginResponse>("/api/v1/auth/refresh");
   return res.data;
 }
 
@@ -63,18 +67,14 @@ export async function exitRoleAssumption(): Promise<ExitRoleResponse> {
 
 // ─── Storage helpers ─────────────────────────────────────────────────────────
 
-export function persistSession(accessToken: string, refreshToken: string, user: AuthUser) {
+export function persistSession(user: AuthUser) {
   try {
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("refresh_token", refreshToken);
     localStorage.setItem("auth_user", JSON.stringify(user));
   } catch { /* quota errors */ }
 }
 
 export function clearSessionStorage() {
   try {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     localStorage.removeItem("auth_user");
   } catch { /* */ }
 }

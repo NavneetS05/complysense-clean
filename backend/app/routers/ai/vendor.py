@@ -1,5 +1,6 @@
 # Use: Backend proxy router for Vendor Reviewer AI features (Contract Analyzer).
 
+import json
 from datetime import datetime
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
+from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
 from app.routers.ai.proxy import forward_to_ai_service
 from app.mongodb import get_mongo_database
@@ -21,6 +23,42 @@ class AnalyzeContractProxyRequest(BaseModel):
     vendor_id: str
     contract_text: str
     conversation_id: str | None = None
+
+
+def _as_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, default=str)
+
+
+def _extract_risk_level(result: dict[str, Any]) -> str | None:
+    risk_level = result.get("risk_level") or result.get("severity")
+    if isinstance(risk_level, str):
+        normalized = risk_level.lower()
+        for level in ("critical", "high", "medium", "low"):
+            if level in normalized:
+                return level
+
+    response = str(result.get("response") or result.get("assessment_summary") or "").lower()
+    for level in ("critical", "high", "medium", "low"):
+        if f"{level} risk" in response or f"risk level: {level}" in response:
+            return level
+    return None
+
+
+def _extract_dpdp_compliant(result: dict[str, Any]) -> bool | None:
+    value = result.get("dpdp_compliant")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "compliant"}:
+            return True
+        if normalized in {"false", "no", "non-compliant", "noncompliant"}:
+            return False
+    return None
 
 
 @router.post("/analyze-contract", summary="Analyze vendor contract with compliance checks")
@@ -69,4 +107,45 @@ async def ai_analyze_contract(
         "conversation_id": payload.conversation_id
     }
 
-    return await forward_to_ai_service("/vendor/analyze-contract", ai_payload, authorization)
+    result = await forward_to_ai_service("/vendor/analyze-contract", ai_payload, authorization)
+    assessment_summary = result.get("assessment_summary") or result.get("summary") or result.get("response")
+    recommendations = result.get("recommendations") or result.get("recommended_actions") or result.get("citations")
+
+    assessment_res = await session.execute(
+        text(
+            """
+            insert into vendor_risk_assessments (
+                vendor_id, institution_id, risk_level, assessment_summary,
+                recommendations, dpdp_compliant, assessed_by, created_at
+            ) values (
+                :vendor_id, :institution_id, :risk_level, :assessment_summary,
+                :recommendations, :dpdp_compliant, :assessed_by, now()
+            ) returning vendor_risk_id
+            """
+        ),
+        {
+            "vendor_id": payload.vendor_id,
+            "institution_id": user_ctx.institution_id,
+            "risk_level": _extract_risk_level(result),
+            "assessment_summary": _as_text(assessment_summary),
+            "recommendations": _as_text(recommendations),
+            "dpdp_compliant": _extract_dpdp_compliant(result),
+            "assessed_by": user_ctx.user_id,
+        },
+    )
+    assessment_row = assessment_res.mappings().first()
+    if not assessment_row:
+        raise HTTPException(status_code=500, detail="Failed to save vendor risk assessment")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="vendor_risk_assessment_created",
+        entity_type="vendor_risk_assessment",
+        entity_id=str(assessment_row["vendor_risk_id"]),
+        action_details={"vendor_id": payload.vendor_id, "source": "ai_contract_analysis"},
+    )
+    await session.commit()
+
+    result["vendor_risk_id"] = str(assessment_row["vendor_risk_id"])
+    return result

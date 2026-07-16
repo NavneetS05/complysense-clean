@@ -4,14 +4,14 @@ These percentages are engineering estimates from inspected implementation depth,
 
 | Area | Estimated status |
 |---|---:|
-| Overall | 62% |
-| Frontend | 68% |
-| Backend API | 70% |
-| Authentication | 72% |
+| Overall | 68% |
+| Frontend | 72% |
+| Backend API | 76% |
+| Authentication | 84% |
 | RBAC | 78% |
-| AI service | 58% |
-| PostgreSQL | 75% |
-| MongoDB | 35% |
+| AI service | 64% |
+| PostgreSQL | 80% |
+| MongoDB | 45% |
 | RAG | 60% |
 | Knowledge base management | 40% |
 
@@ -29,28 +29,21 @@ These percentages are engineering estimates from inspected implementation depth,
 
 - Notifications backend.
 - Email verification.
-- Auth token cookie hardening.
 - Role assumption start workflow.
-- Vendor risk assessment persistence from AI outputs.
-- Evidence scanning/extraction/indexing.
-- MongoDB CRUD usage beyond helper abstractions.
+- Full evidence/RAG indexing pipeline.
 - Production document/report generation.
 - Automated tests.
 
 ## High-Priority Remaining Work
 
-1. Fix login lockout duration and response shape.
-2. Move refresh token out of `localStorage` or introduce secure cookie flow.
-3. Align AI permissions between main proxy and AI service.
-4. Harden evidence upload: size, MIME/extension allowlist, scanning hook, streaming write.
-5. Implement notifications API or remove dead UI badges until backed.
-6. Add tests for auth, RBAC, tenant scoping, and critical workflows.
-7. Resolve frontend lint errors.
-8. Complete role assumption start/stop lifecycle.
+1. Implement notifications API or remove dead UI badges until backed.
+2. Add tests for auth, RBAC, tenant scoping, and critical workflows.
+3. Resolve frontend lint errors.
+4. Complete role assumption start/stop lifecycle with active session integrity checks.
+5. Complete evidence-to-RAG ingestion and Supabase KB operational flow.
 
 ## Technical Debt
 
-- Duplicate route exports in `frontend/src/routes/index.tsx` and `AppRouter.tsx`.
 - AI microservice imports main app auth/RBAC modules, coupling service boundaries.
 - Some backend routers write SQL directly instead of using repositories.
 - Some comments/docs contain mojibake and outdated OpenAI references.
@@ -65,12 +58,8 @@ These percentages are engineering estimates from inspected implementation depth,
 
 ## Recommended Implementation Order
 
-1. Security/auth fixes.
-2. RBAC/AI permission alignment.
-3. Evidence upload hardening.
-4. Notifications and role assumption lifecycle.
-5. RAG knowledge/evidence ingestion completion.
-6. Report generation pipeline.
-7. Test suite and CI.
-8. Documentation cleanup.
-
+1. Notifications and role assumption lifecycle.
+2. RAG knowledge/evidence ingestion completion.
+3. Report generation pipeline.
+4. Test suite and CI.
+5. Documentation cleanup.

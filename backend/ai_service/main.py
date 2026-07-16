@@ -97,6 +97,9 @@ async def lifespan(app: FastAPI):
 # ── App factory ─────────────────────────────────────────────────────────────────
 
 def create_app() -> FastAPI:
+    from ai_service.config import get_ai_settings
+    settings = get_ai_settings()
+
     app = FastAPI(
         title="ComplySense AI Service",
         description="Decoupled AI reasoning engine for ComplySense — RAG + Gemini 2.5 Flash",
@@ -106,7 +109,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

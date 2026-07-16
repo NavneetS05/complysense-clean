@@ -35,7 +35,7 @@ _conv_mgr = ConversationManager()
 @router.post("/triage", summary="Priority-triage an incident log against ISO 27001 and CERT-In")
 async def compliance_triage(
     payload: TriageRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
 ) -> dict[str, Any]:
     """
     Triages a security incident log and classifies priority.
@@ -75,7 +75,7 @@ async def compliance_triage(
 @router.post("/regulatory-change", summary="Analyze a new regulatory circular for gaps")
 async def regulatory_change(
     payload: RegulatoryChangeRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
 ) -> dict[str, Any]:
     """
     Compares new regulatory circular against existing compliance posture and maps gaps.

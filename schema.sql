@@ -133,6 +133,7 @@ CREATE TABLE users (
 CREATE INDEX idx_users_institution ON users(institution_id);
 CREATE INDEX idx_users_role ON users(role_id);
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_email_lower ON users(lower(email));
 
 
 -- PASSWORD RESET TOKENS
@@ -504,6 +505,7 @@ CREATE TABLE vendor_risk_assessments (
 );
 
 CREATE INDEX idx_vendor_risk_institution ON vendor_risk_assessments(institution_id);
+CREATE INDEX idx_vendor_risk_vendor_created ON vendor_risk_assessments(vendor_id, created_at DESC);
 
 
 /*
@@ -581,6 +583,8 @@ CREATE TABLE audit_reports (
     generated_by    UUID REFERENCES users(user_id),
     generated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_audit_reports_institution ON audit_reports(institution_id);
 
 
 /*
@@ -662,6 +666,7 @@ CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
 CREATE INDEX idx_audit_logs_institution ON audit_logs(institution_id);
+CREATE INDEX idx_audit_logs_institution_created_action ON audit_logs(institution_id, created_at, action_type);
 
 -- Master-plan addition. Run only if the deployed Neon schema does not already include this table.
 CREATE TABLE IF NOT EXISTS ai_conversations (

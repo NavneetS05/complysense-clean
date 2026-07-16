@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Request
@@ -32,15 +33,19 @@ from app.schemas.auth import (
     MessageResponse,
     RegisterRequest,
     ResetPasswordRequest,
-    TokenRefreshRequest,
     UserContext,
     ValidateResetTokenResponse,
 )
 from app.services.mail_service import MailService
 
 _MAX_ATTEMPTS = 3
-_BLOCK_SECONDS = 5
+_BLOCK_SECONDS = 5 * 60
 
+
+@dataclass(frozen=True)
+class AuthTokenResult:
+    response: LoginResponse
+    refresh_token: str
 
 
 class AuthService:
@@ -57,7 +62,7 @@ class AuthService:
     # REGISTER
     # ------------------------------------------------------------------
 
-    async def register(self, payload: RegisterRequest, request: Request) -> LoginResponse:
+    async def register(self, payload: RegisterRequest, request: Request) -> AuthTokenResult:
         """Create a new user account within an existing institution.
 
         Raises UnauthorizedError if the email is already in use.
@@ -112,7 +117,7 @@ class AuthService:
     # LOGIN
     # ------------------------------------------------------------------
 
-    async def login(self, payload: LoginRequest, request: Request) -> LoginResponse:
+    async def login(self, payload: LoginRequest, request: Request) -> AuthTokenResult:
         ip = _get_ip(request)
         user = await self.users.find_active_by_email(payload.email)
 
@@ -141,8 +146,9 @@ class AuthService:
                     ip_address=ip,
                 )
                 await self.session.commit()
-                raise UnauthorizedError(
-                    f"Account is temporarily locked. Try again in {remaining} minute(s)."
+                raise LockedError(
+                    f"Account is temporarily locked. Try again in {remaining} minute(s).",
+                    blocked_until=blocked_until.isoformat(),
                 )
 
         # ---- verify password ----
@@ -232,14 +238,14 @@ class AuthService:
     # REFRESH TOKEN
     # ------------------------------------------------------------------
 
-    async def refresh(self, payload: TokenRefreshRequest, request: Request) -> LoginResponse:
+    async def refresh(self, refresh_token: str, request: Request) -> AuthTokenResult:
         """Validate the refresh token, rotate session, and return a new token pair.
 
         Refresh token rotation: old session is deleted, new session is created.
         """
         ip = _get_ip(request)
         try:
-            claims = _decode_verified(payload.refresh_token, expected_type="refresh")
+            claims = _decode_verified(refresh_token, expected_type="refresh")
         except (JWTError, ValueError) as exc:
             raise UnauthorizedError("Invalid or expired refresh token") from exc
 
@@ -500,7 +506,7 @@ class AuthService:
             expires_at=expires_at,
         )
 
-    def _build_token_pair(self, context: UserContext) -> LoginResponse:
+    def _build_token_pair(self, context: UserContext) -> AuthTokenResult:
         claims = {
             "institution_id": context.institution_id,
             "role_id": context.role_id,
@@ -509,10 +515,12 @@ class AuthService:
         }
         access = create_access_token(context.user_id, claims)
         refresh = create_refresh_token(context.user_id, context.session_id)
-        return LoginResponse(
-            access_token=access,
+        return AuthTokenResult(
+            response=LoginResponse(
+                access_token=access,
+                user=context,
+            ),
             refresh_token=refresh,
-            user=context,
         )
 
 

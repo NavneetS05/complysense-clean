@@ -8,7 +8,7 @@ Frontend route file: `frontend/src/routes/SecurityRoutes.tsx`.
 
 Sidebar entries: Dashboard, Incidents, Controls, Evidence.
 
-Current status: Implemented for incident CRUD; Partially Implemented for AI and evidence hardening.
+Current status: Implemented for incident CRUD/timeline, dashboard stats, AI permission alignment, and evidence upload hardening.
 
 ## Pages
 
@@ -30,6 +30,7 @@ Backend permissions:
 - `VIEW_CONTROLS`
 - `UPLOAD_EVIDENCE`
 - `VIEW_EVIDENCE`
+- `REVIEW_EVIDENCE` for evidence approval/rejection where granted by role seeding.
 
 Frontend guard:
 
@@ -40,9 +41,9 @@ Frontend guard:
 PostgreSQL:
 
 - `incidents`: read, insert, update.
-- `incident_timeline`: read in detail view.
+- `incident_timeline`: written on incident create/update and read in detail view.
 - `control_assignments`: read for controls.
-- `evidence_documents`: read/insert for evidence.
+- `evidence_documents`: read/insert for evidence and status transition review.
 
 MongoDB:
 
@@ -57,14 +58,11 @@ Implemented:
 - Agent: `SecurityAgent`.
 - RAG pipeline via `BaseAgent`.
 
-Partially Implemented:
+Remaining gap:
 
-- Security AI service has permission inconsistencies in inspected route definitions.
 - CERT-In drafting exists as AI feature, but actual official filing workflow is not implemented.
 
 ## Missing Features and Improvements
 
-- `get_dashboard_stats` returns a generated timeline array rather than querying real incident history buckets.
-- Incident timeline insertion is not visible in create/update incident flow.
-- Evidence upload lacks file size, type, malware, and content validation.
-
+- Official CERT-In filing workflow is not implemented.
+- Notifications/reminders are not implemented because notifications backend is out of scope.

@@ -30,7 +30,7 @@ _conv_mgr = ConversationManager()
 @router.post("/analyze-contract", summary="Analyze a vendor contract or SOC2 report")
 async def analyze_contract(
     payload: AnalyzeContractRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_VENDORS))],
 ) -> dict[str, Any]:
     """
     Analyzes a vendor contract or SOC2 report against DPDP Act 2023 and ISO 27001:2022.

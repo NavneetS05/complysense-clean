@@ -8,7 +8,7 @@ Frontend route file: `frontend/src/routes/ComplianceRoutes.tsx`.
 
 Sidebar entries: Dashboard, Controls, Gaps, Evidence Queue, Assessments, Policies, Tasks, Notifications.
 
-Current status: Partially Implemented.
+Current status: Implemented for core workflows and remediated AI permission alignment; notifications remain out of scope.
 
 ## Pages
 
@@ -18,7 +18,7 @@ Current status: Partially Implemented.
 | Controls | `/compliance/controls` | `Controls.tsx` | Connected to `GET/POST /controls` |
 | Control Detail | `/compliance/controls/:id` | `ControlDetail.tsx` | Connected to `GET/PATCH /controls/{assignment_id}` |
 | Gaps | `/compliance/gaps` | `Gaps.tsx` | Connected to `GET /gaps` and detail route |
-| Evidence Queue | `/compliance/evidence-queue` | `EvidenceQueue.tsx` | Connected to evidence list/detail APIs |
+| Evidence Queue | `/compliance/evidence-queue` | `EvidenceQueue.tsx` | Connected to evidence list/detail APIs; backend review transition exists |
 | Assessments | `/compliance/assessments` | `Assessments.tsx` | Connected to assessment APIs |
 | Assessment Runner | `/compliance/assessments/:id` | `AssessmentRunner.tsx` | Connected to save/submit APIs |
 | Policies | `/compliance/policies` | `Policies.tsx` | Connected to policies APIs |
@@ -57,7 +57,7 @@ PostgreSQL:
 - Writes `compliance_gaps` on assessment submit.
 - Reads/writes `mitigation_tasks`.
 - Reads/writes `generated_policies`.
-- Reads `evidence_documents`.
+- Reads and reviews `evidence_documents`.
 - Reads/writes `audit_reports` for report APIs under policies.
 
 MongoDB:
@@ -78,15 +78,13 @@ Implemented:
 - Agent: `backend/ai_service/agents/compliance_agent.py`.
 - RAG pipeline through `BaseAgent`.
 
-Partially Implemented:
+Implemented:
 
-- Main API proxy allows `VIEW_CONTROLS`; AI service triage/regulatory-change require `MANAGE_INSTITUTIONS`, which can block the Compliance Officer role.
+- Main API proxy and AI service triage/regulatory-change routes both require `VIEW_CONTROLS`.
 - Conversation history is supported through `ConversationManager` when `conversation_id` is supplied.
 
 ## Missing Features and Improvements
 
 - Notifications backend is not implemented.
-- AI permissions should be aligned between proxy and service.
 - Assessment gap generation is simplistic: yes/no response mapping only; no framework-specific scoring rules found.
-- Evidence queue needs stronger review/update endpoints if approvals are expected.
-
+- Frontend should wire evidence approve/reject actions to the backend review transition endpoint.

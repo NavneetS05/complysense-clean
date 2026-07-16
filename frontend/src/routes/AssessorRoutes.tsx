@@ -6,6 +6,7 @@ import { RoleRoute } from "./RoleRoute";
 import Dashboard from "../pages/assessor/Dashboard";
 import Chat from "../pages/assessor/Chat";
 import ReportLibrary from "../pages/assessor/ReportLibrary";
+import ReportView from "../pages/auditor/ReportView";
 
 export const assessorRoutes: RouteObject = {
   path: "/assessor",
@@ -17,6 +18,7 @@ export const assessorRoutes: RouteObject = {
   children: [
     { path: "dashboard", element: <Dashboard /> },
     { path: "reports", element: <ReportLibrary /> },
+    { path: "reports/:id", element: <ReportView /> },
     { path: "chat", element: <Chat /> }
   ]
 };

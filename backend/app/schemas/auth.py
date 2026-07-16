@@ -25,10 +25,6 @@ class RegisterRequest(BaseModel):
     designation: str | None = Field(default=None, max_length=100)
 
 
-class TokenRefreshRequest(BaseModel):
-    refresh_token: str
-
-
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -63,13 +59,11 @@ class UserContext(BaseModel):
 
 class TokenPair(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 
 
 class LoginResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     user: UserContext
 

@@ -58,9 +58,9 @@ Implemented:
 - `core/exceptions.py`: custom application errors.
 - `core/logging.py`: structured logging setup.
 
-Partially Implemented:
+Implemented:
 
-- `LockedError` exists but login lockout path uses `UnauthorizedError`.
+- Login lockout uses a 5-minute `_BLOCK_SECONDS` value and raises `LockedError` with HTTP 423 and `blocked_until`.
 
 ## Routers
 
@@ -149,7 +149,7 @@ Implemented:
 
 Partially Implemented:
 
-- Audit logging is inconsistent across non-auth routers.
+- Audit logging now covers critical non-auth write paths added in this remediation, but still needs automated coverage to prevent drift.
 
 ## AI Integration
 
@@ -159,10 +159,8 @@ Implemented:
 - AI proxy forwards Authorization header.
 - AI service has independent router registration and health endpoints.
 
-Partially Implemented:
-
 - AI service depends on main app auth modules and DB-backed permissions.
-- AI proxy and direct AI route permissions need alignment.
+- AI proxy and direct AI route permissions have been aligned for the remediated endpoints.
 - Browser direct AI client exists in frontend but is unused.
 
 ## Validation
@@ -170,12 +168,15 @@ Partially Implemented:
 Implemented:
 
 - Pydantic request models are used across most routers.
+- Evidence review status transitions are implemented in `evidence.review_evidence` and gated by `REVIEW_EVIDENCE`.
+- Policy approve/reject use dedicated `APPROVE_POLICIES` endpoints; draft/update remains separate under `DRAFT_POLICIES`.
+- Policy redrafts can link to `parent_policy_id` and increment `version_number`.
+- Assessment submit replaces prior generated result/gaps for the assessment before recalculating, preventing duplicate derived rows on resubmit.
 
 Partially Implemented:
 
-- Many domain values are untyped strings rather than enums.
-- Evidence upload validation is insufficient.
-- File storage is local and synchronous after reading entire upload into memory.
+- Remediated routers now use enum validation for key status/severity fields.
+- Evidence upload now validates size/type, streams file writes, calls a malware-scan hook, and writes MongoDB metadata/extracted text.
 
 ## Transactions
 
@@ -185,17 +186,15 @@ Implemented:
 
 Partially Implemented:
 
-- Some routes commit before checking returned row in a few patterns.
+- Critical remediated routes now check returned rows before commit.
+- Evidence upload rolls back database work and removes the streamed file if downstream metadata/audit writes fail before commit.
 - Error handling consistency varies by router.
 
 ## Backend Missing Work
 
 - Implement notifications router.
 - Implement role assumption start flow.
-- Fix lockout status/duration.
-- Harden upload handling.
 - Add test coverage.
 - Consolidate repeated SQL into repositories where useful.
 - Add rate limiting for auth and sensitive endpoints.
 - Add production report generation.
-

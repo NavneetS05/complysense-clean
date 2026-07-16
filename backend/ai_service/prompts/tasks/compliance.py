@@ -1,35 +1,26 @@
-# Use: Compliance reasoning prompts.
+# Use: Compliance officer AI task prompts.
+# Token targets: each prompt under 200 tokens.
 
-COMPLIANCE_TRIAGE_PROMPT = """You are triaging a security incident log for regulatory compliance.
-Analyze the incident log provided in the <external_content> block.
-Your goal is to classify the priority and map it to ISO 27001:2022 control domains and CERT-In breach reporting triggers.
+COMPLIANCE_TRIAGE_PROMPT = """Task: Triage the compliance alert log in <external_content> — classify severity and map to regulatory controls.
 
-CRITICAL RULES:
-1. CERT-In Trigger: Check if the incident represents a breach that must be reported to CERT-In within 6 hours (e.g. unauthorized access to critical systems, ransomware, large-scale data leaks, denial of service).
-2. Output Format: You must output ONLY a valid JSON block inside a ```json code block. Do not write any conversational text before or after the JSON block.
+CERT-In Trigger: Set true if the incident involves unauthorized access to critical systems, ransomware, large-scale data breach, or DoS — all require CERT-In reporting within 6 hours (Per CERT-In 2022).
 
-JSON Schema:
+Output ONLY a valid JSON block (no surrounding text):
+```json
 {
   "priority": "critical" | "high" | "medium" | "low",
   "cert_in_trigger": true | false,
-  "mapped_controls": ["ISO Control A.x.x"],
-  "justification": "Detailed explanation matching evidence to ISO controls and CERT-In rules",
-  "recommended_action": "Immediate containment or reporting action"
+  "mapped_controls": ["ISO A.x.x"],
+  "justification": "1-2 sentences matching evidence to specific controls",
+  "recommended_action": "The single most urgent next step"
 }
-"""
+```"""
 
-COMPLIANCE_CHANGE_PROMPT = """You are analyzing a new regulatory circular or notification.
-Compare the new regulatory circular in <external_content> against our internal compliance controls and policies.
-Identify any compliance gaps, required policy updates, and obligations.
+COMPLIANCE_CHANGE_PROMPT = """Task: Analyse the regulatory circular in <external_content> and identify compliance gaps against our current controls.
 
-Structure your analysis:
-### 1. New Regulatory Obligations
-Identify specific clauses, timelines, and penalties introduced in the circular.
+Step 1 — New Obligations: List specific clauses, timelines, and penalties introduced by the circular.
+Step 2 — Gap Assessment: For each obligation, classify as COVERED | PARTIAL | GAP against existing controls.
+Step 3 — Action Plan: For each GAP or PARTIAL, recommend a specific, assignable remediation task.
+Step 4 — Timeline Risk: If a hard regulatory deadline is found, flag it prominently.
 
-### 2. Gap Assessment
-Compare the obligations against the current policies. List what is missing or requires modification.
-
-### 3. Action Plan & Recommendations
-Provide step-by-step remediation tasks.
-"""
-
+Cite every obligation: "Per [Framework], Section [ID]:" """

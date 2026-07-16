@@ -50,8 +50,8 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await login(email, password);
-      setSession(data.access_token, data.refresh_token, data.user);
-      persistSession(data.access_token, data.refresh_token, data.user);
+      setSession(data.access_token, data.user);
+      persistSession(data.user);
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
       navigate(from ?? roleDashboard(data.user.role_name), { replace: true });
     } catch (err: unknown) {
@@ -61,8 +61,9 @@ export default function Login() {
         ?.response?.data;
 
       if (status === 423 || status === 429) {
-        const until = detail?.blocked_until
-          ? new Date(detail.blocked_until)
+        const blockedUntil = detail?.blocked_until ?? (detail as { error?: { blocked_until?: string } })?.error?.blocked_until;
+        const until = blockedUntil
+          ? new Date(blockedUntil)
           : new Date(Date.now() + 5000);
         setLockedUntil(until);
         setError("Too many failed attempts. Account temporarily locked.");

@@ -36,20 +36,20 @@ Not Implemented:
 
 | Module | Current Status | Evidence |
 |---|---|---|
-| Authentication | Partially Implemented | `backend/app/routers/auth.py`, `backend/app/services/auth_service.py`, `frontend/src/lib/auth.ts` |
+| Authentication | Implemented | `backend/app/routers/auth.py`, `backend/app/services/auth_service.py`, `frontend/src/lib/auth.ts` |
 | RBAC | Implemented | `backend/app/domain/rbac.py`, `backend/app/core/permissions.py`, `frontend/src/routes/RoleRoute.tsx` |
 | Session handling | Implemented | `backend/app/repositories/sessions.py`, `user_sessions` table |
 | Role assumption exit | Partially Implemented | `AuthService.exit_role_assumption`; no matching assume endpoint found |
 | Compliance controls | Implemented | `backend/app/routers/controls.py` |
 | Assessments and gaps | Partially Implemented | `backend/app/routers/assessments.py`, `backend/app/routers/gaps.py` |
-| Evidence upload | Partially Implemented | `backend/app/routers/evidence.py` |
+| Evidence upload | Implemented for upload validation and metadata writes | `backend/app/routers/evidence.py` |
 | Incidents | Implemented | `backend/app/routers/incidents.py` |
 | Vendors | Implemented | `backend/app/routers/vendors.py` |
 | Policies | Partially Implemented | `backend/app/routers/policies.py` |
 | Audit workspace | Partially Implemented | `backend/app/routers/audit.py` |
 | Notifications | Not Implemented | Empty router in `backend/app/routers/notifications.py` |
 | AI/RAG | Partially Implemented | `backend/ai_service/rag`, `backend/ai_service/agents` |
-| MongoDB document storage | Partially Implemented | helpers exist; limited route usage found |
+| MongoDB document storage | Partially Implemented | helper CRUD exists; evidence metadata/extracted-text writes are wired |
 
 ## Verification Results
 
@@ -62,10 +62,8 @@ Commands run during audit:
 
 ## High-Risk Findings
 
-1. Login lockout behavior is inconsistent. `AuthService` uses `_BLOCK_SECONDS = 5`, while comments/UI describe five minutes. It also raises `UnauthorizedError` instead of `LockedError`, while the frontend expects 423/429 behavior.
-2. Refresh tokens are stored in `localStorage` despite comments suggesting HttpOnly cookies.
-3. AI service CORS allows `*` with credentials in `backend/ai_service/main.py`.
-4. Main AI proxy and AI service route permissions disagree in some places, especially compliance triage and regulatory change.
-5. Evidence upload reads the full file into memory and writes to local disk without size/type/security validation.
-6. There are duplicate or stale route artifacts such as `frontend/src/routes/index.tsx` alongside the active `AppRouter.tsx`.
-
+1. No automated test suite or CI/CD configuration was found.
+2. Role assumption start flow is absent, and any valid but unauthorized `user_sessions.active_role_id` value would be trusted until an exit/reset path corrects it.
+3. Notifications backend remains empty while frontend notification/pending UI exists.
+4. Production report generation remains basic record generation rather than a complete document pipeline.
+5. Evidence-to-RAG/Supabase KB ingestion still needs an explicit production flow.

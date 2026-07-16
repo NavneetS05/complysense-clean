@@ -33,6 +33,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         content = {"error": {"code": exc.code, "message": exc.message}}
         if hasattr(exc, "blocked_until") and exc.blocked_until:
             content["error"]["blocked_until"] = exc.blocked_until
+            content["blocked_until"] = exc.blocked_until
         return JSONResponse(
             status_code=exc.status_code,
             content=content,

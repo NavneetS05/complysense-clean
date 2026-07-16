@@ -30,7 +30,7 @@ _conv_mgr = ConversationManager()
 @router.post("/cert-in-draft", summary="Draft a formal CERT-In cybersecurity incident report")
 async def draft_certin_report(
     payload: CertInDraftRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INCIDENTS))],
 ) -> dict[str, Any]:
     """
     Drafts a structured CERT-In cybersecurity incident report from incident log text.

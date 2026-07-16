@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     secret_key: str = Field(min_length=32)
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7
+    refresh_cookie_name: str = "complysense_refresh"
+    refresh_cookie_secure: bool = True
+    refresh_cookie_samesite: str = "lax"
     jwt_algorithm: str = "HS256"
 
     # SMTP — Gmail address and App Password only.

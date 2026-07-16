@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.config import get_settings
 from app.routers import (
     assessments,
+    assessor,
     audit,
     auth,
     calendar,
@@ -38,6 +39,7 @@ def build_api_router() -> APIRouter:
     api_router.include_router(compliance.router)
     api_router.include_router(controls.router)
     api_router.include_router(assessments.router)
+    api_router.include_router(assessor.router)
     api_router.include_router(evidence.router)
     api_router.include_router(gaps.router)
     api_router.include_router(incidents.router)

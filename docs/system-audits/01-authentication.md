@@ -22,13 +22,13 @@ PostgreSQL:
 - Inserts `audit_logs`.
 - Updates `users.failed_login_attempts`, `users.blocked_until`, `users.last_login`.
 
-Current status: Partially Implemented.
+Current status: Implemented.
 
-Issues:
+Remediated:
 
-- `_BLOCK_SECONDS = 5` in `backend/app/services/auth_service.py`, but code comments and UX describe a 5-minute lockout.
-- Lockout raises `UnauthorizedError` with status 401 instead of using `LockedError` with status 423.
-- Frontend expects 423/429 and `blocked_until` in `frontend/src/pages/auth/Login.tsx`, but backend returns an `error` envelope for custom errors and login currently raises `UnauthorizedError`.
+- `_BLOCK_SECONDS` in `backend/app/services/auth_service.py` is now `5 * 60`.
+- Active login lockout raises `LockedError`, producing HTTP 423.
+- The lockout response envelope includes `blocked_until`; the frontend reads both top-level and nested error envelope shapes.
 
 ### Registration
 
@@ -74,12 +74,15 @@ Implemented:
 - JWT refresh tokens include `type=refresh` and `session_id`.
 - Existing session is deleted and a new session is created.
 
-Current status: Partially Implemented.
+Current status: Implemented.
 
-Security concern:
+Security behavior:
 
-- Refresh tokens are stored in `localStorage` by `persistSession` in `frontend/src/lib/auth.ts`.
-- `api.ts` sets `withCredentials: true` and comments mention HttpOnly cookies, but the backend does not set refresh-token cookies in the inspected code.
+- Refresh tokens are set by `backend/app/routers/auth.py` as HttpOnly cookies using the configured Secure and SameSite flags.
+- `LoginResponse` and `TokenPair` no longer serialize refresh tokens.
+- `frontend/src/lib/auth.ts` persists only the user profile in `localStorage`; access tokens stay in memory.
+- `frontend/src/lib/api.ts` refreshes via `POST /api/v1/auth/refresh` with credentials and no refresh token body.
+- Logout clears the refresh cookie.
 
 ### Password Reset
 
@@ -132,12 +135,12 @@ Current status: Implemented.
 
 ## Cookies
 
-Current status: Not Implemented for auth tokens.
+Current status: Implemented for refresh tokens.
 
 Evidence:
 
-- Frontend persists access and refresh tokens in `localStorage`.
-- No backend `Set-Cookie` behavior was found in auth routes.
+- Backend auth routes set and clear the configured refresh-token cookie.
+- Frontend stores only `auth_user` and the theme flag in `localStorage`, not access or refresh tokens.
 
 ## Middleware and Guards
 
@@ -165,8 +168,7 @@ Implemented:
 - Audit storage table: `audit_logs`.
 - Audit repository: `backend/app/repositories/audit.py`.
 
-Partially Implemented:
+Remaining considerations:
 
 - Security logs are represented as audit log events, not a separate security log stream.
-- Activity logging is inconsistent across routers; user/admin operations write some audit rows directly, while many CRUD operations do not.
-
+- Activity logging now covers more critical CRUD paths, including controls, assessments, evidence, incidents, vendors, tasks, policies, and audit observations, but coverage should still be regression-tested.

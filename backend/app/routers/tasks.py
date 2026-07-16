@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
+from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -137,10 +138,19 @@ async def create_task(
             "created_by": user_ctx.user_id,
         },
     )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create task")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="task_created",
+        entity_type="mitigation_task",
+        entity_id=str(row["task_id"]),
+        action_details={"priority": payload.priority},
+    )
+    await session.commit()
     return {
         "task_id": str(row["task_id"]),
         "task_title": row["task_title"],
@@ -169,10 +179,19 @@ async def update_task(
         raise HTTPException(status_code=400, detail="No update values provided")
     query = f"update mitigation_tasks set {', '.join(updates)} where task_id = :task_id and institution_id = :inst_id returning task_id"
     res = await session.execute(text(query), values)
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="task_updated",
+        entity_type="mitigation_task",
+        entity_id=task_id,
+        action_details={"fields": [field for field in fields if getattr(payload, field, None) is not None]},
+    )
+    await session.commit()
     return {"task_id": str(row["task_id"]), "updated": True}
 
 
@@ -212,8 +231,16 @@ async def submit_task(
             ),
             {"assignment_id": task_row["assignment_id"], "inst_id": user_ctx.institution_id},
         )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to submit task")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="task_submitted",
+        entity_type="mitigation_task",
+        entity_id=task_id,
+    )
+    await session.commit()
     return {"task_id": str(row["task_id"]), "task_status": row["task_status"]}

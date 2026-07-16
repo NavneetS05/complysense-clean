@@ -41,22 +41,15 @@ api.interceptors.response.use(
       }
 
       isRefreshing = true;
-      const { refreshToken, setSession, clearSession, user } =
-        useAuthStore.getState();
-
-      if (!refreshToken) {
-        clearSession();
-        window.location.href = "/login";
-        return Promise.reject(error);
-      }
+      const { setSession, clearSession } = useAuthStore.getState();
 
       try {
-        const res = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, {
-          refresh_token: refreshToken,
+        const res = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, undefined, {
+          withCredentials: true,
         });
-        const { access_token, refresh_token, user: newUser } = res.data;
-        setSession(access_token, refresh_token, newUser);
-        persistSession(access_token, refresh_token, newUser);
+        const { access_token, user: newUser } = res.data;
+        setSession(access_token, newUser);
+        persistSession(newUser);
 
         refreshQueue.forEach((cb) => cb(access_token));
         refreshQueue = [];

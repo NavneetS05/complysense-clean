@@ -58,14 +58,14 @@ Implemented:
 - Direct AI service routes in `backend/ai_service/routers/audit.py`.
 - Agent: `AuditAgent`.
 
-Partially Implemented:
+Implemented:
 
-- Main API also implements non-AI smart sample and draft observation directly in `backend/app/routers/audit.py`.
-- This creates duplicate behavior: AI proxy exists, but main audit router has lightweight local implementations.
+- `/api/v1/ai/audit/smart-sample` is canonical for smart sampling.
+- `/api/v1/ai/audit/draft-observation` is canonical for observation drafting.
+- Legacy local audit endpoints redirect to the canonical AI proxy routes with HTTP 307.
 
 ## Missing Features and Improvements
 
 - Generated reports are stored as database records and returned as simple HTML; no robust document/PDF generation pipeline found.
-- Audit observations write an audit log with `entity_id=None`, so the created observation ID is not captured in the log.
+- Audit observations now write audit logs with the created observation ID; update/delete observation actions are also audited.
 - CSV export exists for audit logs.
-

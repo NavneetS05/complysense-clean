@@ -8,11 +8,8 @@ Implemented:
 
 - `frontend/src/main.tsx` mounts React and applies persisted dark mode before render.
 - `frontend/src/App.tsx` wraps the router in `ToastProvider`.
-- `frontend/src/routes/AppRouter.tsx` creates the active route tree and hydrates auth state from `localStorage`.
-
-Partially Implemented:
-
-- `frontend/src/routes/index.tsx` defines another router that appears stale or unused because `App.tsx` imports `AppRouter`.
+- `frontend/src/routes/AppRouter.tsx` creates the active route tree, hydrates the user profile, and silently refreshes the in-memory access token through the refresh cookie.
+- Stale duplicate router file `frontend/src/routes/index.tsx` was confirmed unused and removed.
 
 ## State Management
 
@@ -25,7 +22,9 @@ Implemented:
 Partially Implemented:
 
 - Notification state exists, but backend notification endpoints are not implemented.
-- Auth tokens are stored in Zustand and `localStorage`.
+- Access tokens are stored in Zustand memory state only.
+- Refresh tokens are stored in backend-managed HttpOnly cookies.
+- `localStorage` stores only the user profile and UI theme preference.
 
 ## API Clients
 
@@ -84,7 +83,7 @@ Implemented page shells:
 - Department: Dashboard, Tasks, Task Wizard, Evidence, Self Assessment.
 - Vendor: Dashboard, New Vendor, Vendor Detail, Expiry Tracker.
 - Policy: Inbox, Policy Review, History.
-- Assessor: Dashboard, Report Library, Chat.
+- Assessor: Dashboard, Report Library, Report View, Chat. These are wired to read-only backend APIs.
 
 ## Validation
 
@@ -102,7 +101,7 @@ Implemented:
 
 Partially Implemented:
 
-- Error response shape mismatch exists for lockout handling.
+- Lockout handling reads the backend 423 envelope and `blocked_until`.
 - Many pages use generic error handling and `any` in catch blocks.
 
 ## Styling
@@ -129,8 +128,5 @@ Major lint classes:
 ## Missing Frontend Work
 
 - Remove or wire `aiApi.ts`.
-- Resolve duplicate router export.
-- Replace `localStorage` refresh-token persistence if backend cookie auth is implemented.
 - Implement notification data flow or hide nonfunctional notification/pending badges.
 - Clean lint errors before production release.
-

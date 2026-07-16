@@ -1,5 +1,5 @@
 # Use: Assessor endpoints for Q&A and framework clause interpretation.
-# Gated by permission VIEW_CONTROLS, isolation enforced on conversation history.
+# Gated by permission USE_ASSESSOR_CHAT, isolation enforced on conversation history.
 
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,7 +26,7 @@ _conv_mgr = ConversationManager()
 @router.post("/chat", summary="Read-only assessor Q&A and framework clause verification")
 async def chat_endpoint(
     payload: AssessorChatRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.USE_ASSESSOR_CHAT))],
 ) -> dict[str, Any]:
     """
     Conversational Q&A endpoint for read-only assessors.
@@ -55,7 +55,7 @@ async def chat_endpoint(
             conversation_id=payload.conversation_id,
             user_id=str(user_ctx.user_id),
             institution_id=str(user_ctx.institution_id),
-            agent_type="assessor_chat",
+            agent_type="assessor_qa",
             user_query=payload.query,
             assistant_response=result["response"],
         )

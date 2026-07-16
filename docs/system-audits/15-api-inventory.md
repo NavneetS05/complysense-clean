@@ -7,9 +7,9 @@ Base prefix for main API: `/api/v1`.
 | Method | Route | Router | Auth | Status |
 |---|---|---|---|---|
 | POST | `/auth/register` | `auth.py` | Public | Implemented |
-| POST | `/auth/login` | `auth.py` | Public | Partially Implemented |
+| POST | `/auth/login` | `auth.py` | Public | Implemented |
 | POST | `/auth/logout` | `auth.py` | Bearer/session | Implemented |
-| POST | `/auth/refresh` | `auth.py` | Refresh token payload | Implemented |
+| POST | `/auth/refresh` | `auth.py` | HttpOnly refresh cookie | Implemented |
 | GET | `/auth/me` | `auth.py` | Bearer/session | Implemented |
 | PATCH | `/auth/me` | `auth.py` | Bearer/session | Implemented |
 | POST | `/auth/forgot-password` | `auth.py` | Public | Implemented |
@@ -33,14 +33,15 @@ Base prefix for main API: `/api/v1`.
 | `users.py` | `/users`, `/users/invite`, role/status/reset paths | Partially Implemented |
 | `departments.py` | `/departments...` | Implemented |
 | `controls.py` | `/controls`, detail, status, notes | Implemented |
-| `assessments.py` | `/assessments`, responses, submit | Partially Implemented |
+| `assessments.py` | `/assessments`, responses, submit | Implemented; submit is idempotent for derived result/gap rows |
+| `assessor.py` | `/assessor/dashboard-stats`, `/assessor/top-risks`, conversation history reads | Implemented read-only |
 | `gaps.py` | `/gaps`, detail | Implemented |
-| `evidence.py` | `/evidence`, upload, detail | Partially Implemented |
+| `evidence.py` | `/evidence`, upload, detail, review | Implemented for validated upload, metadata, and review transition |
 | `incidents.py` | `/incidents`, stats, detail, update | Implemented |
-| `vendors.py` | `/vendors`, detail, create, update | Partially Implemented |
+| `vendors.py` | `/vendors`, detail, create, update, risk-assessment upsert | Implemented |
 | `tasks.py` | `/tasks`, detail, create, update, submit | Implemented |
-| `policies.py` | `/policies`, content, reports | Partially Implemented |
-| `audit.py` | `/audit/recent`, `/logs`, observations, reports | Partially Implemented |
+| `policies.py` | `/policies`, content, approve/reject, reports wrapper | Implemented for approval lifecycle and redraft versioning |
+| `audit.py` | `/audit/recent`, `/logs`, observations, reports | Implemented for audit records; report document engine remains later phase |
 | `calendar.py` | `/calendar...` | Implemented |
 | `notifications.py` | `/notifications` | Not Implemented |
 
@@ -48,13 +49,14 @@ Base prefix for main API: `/api/v1`.
 
 | Method | Route | Purpose | Status |
 |---|---|---|---|
-| POST | `/ai/compliance/triage` | Triage open gaps | Partially Implemented |
-| POST | `/ai/compliance/regulatory-change` | Analyze circular against posture | Partially Implemented |
+| POST | `/ai/compliance/triage` | Triage open gaps | Implemented; permission-aligned |
+| POST | `/ai/compliance/regulatory-change` | Analyze circular against posture | Implemented; permission-aligned |
 | POST | `/ai/security/cert-in-draft/{incident_id}` | Draft CERT-In report | Partially Implemented |
-| POST | `/ai/audit/smart-sample` | Smart evidence sample | Partially Implemented |
-| POST | `/ai/audit/draft-observation` | Draft audit observation | Partially Implemented |
+| POST | `/ai/audit/smart-sample` | Smart evidence sample | Canonical implementation |
+| POST | `/ai/audit/draft-observation` | Draft audit observation | Canonical implementation |
 | POST | `/ai/policy/analyze/{policy_id}` | Analyze policy | Partially Implemented |
-| POST | `/ai/vendor/analyze-contract` | Analyze vendor contract | Partially Implemented |
+| POST | `/ai/vendor/analyze-contract` | Analyze vendor contract and persist risk assessment | Implemented |
+| POST | `/ai/assessor/chat` | Read-only assessor Q&A | Implemented; permission-aligned |
 | GET | `/ai/dept/translate/{control_id}` | Translate control | Partially Implemented |
 | POST | `/ai/dept/preflight-check` | Evidence preflight | Partially Implemented |
 | POST | `/ai/admin/risk-heatmap` | Risk heatmap | Partially Implemented |
@@ -67,6 +69,5 @@ Implemented:
 
 Partially Implemented:
 
-- Many fields accept raw strings for dates/status/severity instead of enums.
-- Evidence upload validation is weak.
-
+- Some fields still accept raw strings for dates/status/severity outside the remediated routers.
+- Evidence upload has size/type validation, streaming writes, a malware-scan hook, and MongoDB metadata/extracted-text writes; full AV integration remains an operational dependency.

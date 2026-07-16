@@ -30,7 +30,7 @@ _conv_mgr = ConversationManager()
 @router.post("/conflict-detect", summary="Detect conflicts and gaps in a policy document")
 async def detect_policy_conflicts(
     payload: PolicyConflictRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.DRAFT_POLICIES))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.APPROVE_POLICIES))],
 ) -> dict[str, Any]:
     """
     Validates a policy draft against regulatory frameworks.
@@ -70,7 +70,7 @@ async def detect_policy_conflicts(
 @router.post("/executive-summary", summary="Generate an executive compliance briefing")
 async def executive_summary(
     payload: ExecutiveSummaryRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.DRAFT_POLICIES))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.APPROVE_POLICIES))],
 ) -> dict[str, Any]:
     """
     Generates a leadership-ready compliance summary briefing.

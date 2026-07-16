@@ -14,7 +14,7 @@ Implemented:
 - Security helpers: `backend/ai_service/security`.
 - LLM wrapper: `backend/ai_service/utils/llm.py`.
 
-Current status: Partially Implemented.
+Current status: Partially Implemented overall; security-critical proxy permissions and CORS have been remediated.
 
 ## Runtime Startup
 
@@ -60,18 +60,18 @@ Implemented in `BaseAgent.execute`:
 
 | Feature | Main API proxy | AI service route | Agent | Status |
 |---|---|---|---|---|
-| Compliance triage | `/api/v1/ai/compliance/triage` | `/compliance/triage` | `ComplianceAgent` | Partially Implemented |
-| Regulatory change | `/api/v1/ai/compliance/regulatory-change` | `/compliance/regulatory-change` | `ComplianceAgent` | Partially Implemented |
+| Compliance triage | `/api/v1/ai/compliance/triage` | `/compliance/triage` | `ComplianceAgent` | Implemented; proxy/service both require `VIEW_CONTROLS` |
+| Regulatory change | `/api/v1/ai/compliance/regulatory-change` | `/compliance/regulatory-change` | `ComplianceAgent` | Implemented; proxy/service both require `VIEW_CONTROLS` |
 | Compliance chat | Not found in proxy | `/compliance/chat` | `ComplianceAgent` | Partially Implemented |
 | CERT-In draft | `/api/v1/ai/security/cert-in-draft/{incident_id}` | security router | `SecurityAgent` | Partially Implemented |
-| Audit smart sample | `/api/v1/ai/audit/smart-sample` | audit router | `AuditAgent` | Partially Implemented |
-| Audit draft observation | `/api/v1/ai/audit/draft-observation` | audit router | `AuditAgent` | Partially Implemented |
+| Audit smart sample | `/api/v1/ai/audit/smart-sample` | audit router | `AuditAgent` | Canonical implementation; old local audit endpoint redirects |
+| Audit draft observation | `/api/v1/ai/audit/draft-observation` | audit router | `AuditAgent` | Canonical implementation; old local audit endpoint redirects |
 | Policy analysis | `/api/v1/ai/policy/analyze/{policy_id}` | policy router | `PolicyAgent` | Partially Implemented |
-| Vendor contract analysis | `/api/v1/ai/vendor/analyze-contract` | vendor router | `VendorAgent` | Partially Implemented |
+| Vendor contract analysis | `/api/v1/ai/vendor/analyze-contract` | vendor router | `VendorAgent` | Implemented with `vendor_risk_assessments` persistence |
 | Department translation | `/api/v1/ai/dept/translate/{control_id}` | dept router | Dept route/agent logic | Partially Implemented |
 | Department preflight | `/api/v1/ai/dept/preflight-check` | dept router | Dept route/agent logic | Partially Implemented |
 | Admin risk heatmap | `/api/v1/ai/admin/risk-heatmap` | admin router | Admin route/agent logic | Partially Implemented |
-| Assessor chat | direct AI route | assessor router | `AssessorAgent` | Partially Implemented |
+| Assessor chat | `/api/v1/ai/assessor/chat` | assessor router | `AssessorAgent` | Implemented with `USE_ASSESSOR_CHAT` and `assessor_qa` conversation persistence |
 
 ## Supabase
 
@@ -95,11 +95,11 @@ Implemented:
 
 ## MongoDB
 
-Partially Implemented:
+Implemented:
 
 - Config exists for MongoDB document collection.
 - Document storage helpers exist.
-- Direct integration between uploaded evidence, MongoDB extracted text, and RAG indexing is not fully wired in inspected main evidence route.
+- Evidence upload writes document metadata and extracted text previews through `DocumentStore`.
 
 ## Response Validation
 
@@ -122,6 +122,6 @@ Partially Implemented:
 
 ## RBAC Concerns
 
-- Main proxy and AI service route permissions should be aligned.
+- Main proxy and AI service route permissions are aligned for the remediated compliance, audit, policy, vendor, security, and assessor endpoints.
 - AI service imports main app dependencies, which couples the microservice to main API code and DB config.
-
+- AI service CORS no longer combines `allow_credentials=True` with wildcard origins; origins are configured via `AI_CORS_ORIGINS`.

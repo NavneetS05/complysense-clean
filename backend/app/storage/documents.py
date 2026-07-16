@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -35,3 +36,31 @@ class DocumentStore:
             }
         )
         return str(result.inserted_id)
+
+    async def get(self, document_id: str) -> dict[str, Any] | None:
+        row = await self.collection.find_one({"_id": ObjectId(document_id)})
+        if row:
+            row["_id"] = str(row["_id"])
+        return row
+
+    async def update_metadata(
+        self,
+        document_id: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+        extracted_text: str | None = None,
+    ) -> bool:
+        updates: dict[str, Any] = {"updated_at": datetime.now(UTC)}
+        if metadata is not None:
+            updates["metadata"] = metadata
+        if extracted_text is not None:
+            updates["extracted_text"] = extracted_text
+        result = await self.collection.update_one(
+            {"_id": ObjectId(document_id)},
+            {"$set": updates},
+        )
+        return result.modified_count > 0
+
+    async def delete(self, document_id: str) -> bool:
+        result = await self.collection.delete_one({"_id": ObjectId(document_id)})
+        return result.deleted_count > 0

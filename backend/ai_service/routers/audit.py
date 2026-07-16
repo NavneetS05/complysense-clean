@@ -35,7 +35,7 @@ _conv_mgr = ConversationManager()
 @router.post("/smart-sample", summary="Calculate statistically valid audit sample sizes")
 async def smart_sample(
     payload: SmartSampleRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_ASSESSMENTS))],
 ) -> dict[str, Any]:
     """
     Calculates recommended audit sample sizes for controls based on population and risk.

@@ -8,6 +8,7 @@ from app.routers.ai.policy import router as policy_router
 from app.routers.ai.vendor import router as vendor_router
 from app.routers.ai.admin import router as admin_router
 from app.routers.ai.dept import router as dept_router
+from app.routers.ai.assessor import router as assessor_router
 
 
 def build_ai_router() -> APIRouter:
@@ -19,4 +20,5 @@ def build_ai_router() -> APIRouter:
     router.include_router(vendor_router)
     router.include_router(admin_router)
     router.include_router(dept_router)
+    router.include_router(assessor_router)
     return router

@@ -8,7 +8,7 @@ Frontend route file: `frontend/src/routes/VendorRoutes.tsx`.
 
 Sidebar entries: Vendor Register, Expiry Tracker.
 
-Current status: Partially Implemented.
+Current status: Implemented for registry and risk-assessment write paths; notifications remain out of scope.
 
 ## Pages
 
@@ -23,19 +23,19 @@ Current status: Partially Implemented.
 
 Backend permissions:
 
-- `MANAGE_VENDORS`
-- `VIEW_VENDORS` exists in enum, but inspected `vendors.py` uses `MANAGE_VENDORS` even for read endpoints.
+- `VIEW_VENDORS` for vendor list/detail reads.
+- `MANAGE_VENDORS` for vendor create/update, risk assessment writes, and AI contract analysis.
 
 ## Database Usage
 
 PostgreSQL:
 
 - Reads/writes `vendors`.
-- Reads `vendor_risk_assessments`.
+- Reads/writes `vendor_risk_assessments`.
 
 MongoDB:
 
-- No direct vendor route usage found.
+- The AI vendor proxy stores analyzed contract text in `vendor_contracts` as non-fatal supporting metadata.
 
 ## AI Integration
 
@@ -44,14 +44,9 @@ Implemented:
 - Main proxy: `POST /api/v1/ai/vendor/analyze-contract`.
 - AI service: `backend/ai_service/routers/vendor.py`.
 - Agent: `VendorAgent`.
-
-Partially Implemented:
-
-- Contract analysis AI exists, but persistence of AI assessment results into `vendor_risk_assessments` was not found in the inspected main vendor router.
+- The main proxy persists returned AI analysis into `vendor_risk_assessments` and writes `vendor_risk_assessment_created` to `audit_logs`.
 
 ## Missing Features and Improvements
 
-- Read-only vendor access should use `VIEW_VENDORS` where appropriate.
-- Vendor risk assessment creation/update API is missing from the main vendor router.
+- `backend/app/routers/vendors.py::upsert_vendor_risk_assessment` provides a create/update write path for manual risk assessments.
 - Expiry reminders/notifications are not implemented because notifications backend is empty.
-

@@ -7,15 +7,15 @@ import io
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
+from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/audit", tags=["audit"])
@@ -44,12 +44,47 @@ class SmartSamplePayload(BaseModel):
     assessment_id: str
 
 
+async def create_audit_report_entry(
+    session: AsyncSession,
+    *,
+    institution_id: str,
+    generated_by: str,
+    report_name: str,
+    report_type: str,
+    file_path: str,
+    assessment_id: str | None = None,
+) -> dict[str, Any]:
+    res = await session.execute(
+        text(
+            """
+            insert into audit_reports (
+                institution_id, assessment_id, report_name, report_type, file_path, generated_by
+            ) values (
+                :institution_id, :assessment_id, :report_name, :report_type, :file_path, :generated_by
+            ) returning report_id, report_name, report_type, file_path, generated_at
+            """
+        ),
+        {
+            "institution_id": institution_id,
+            "assessment_id": assessment_id,
+            "report_name": report_name,
+            "report_type": report_type,
+            "file_path": file_path,
+            "generated_by": generated_by,
+        },
+    )
+    row = res.mappings().first()
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to create report")
+    return dict(row)
+
+
 @router.get(
     "/recent",
     summary="Get recent audit logs across the platform (Super Admin) or scoped to institution",
 )
 async def get_recent_audit(
-    user: Annotated[UserContext, Depends(get_current_user)],
+    user: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_AUDIT_TRAIL))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     limit: int = Query(10),
 ) -> list[dict[str, Any]]:
@@ -83,7 +118,7 @@ async def get_recent_audit(
     summary="Search, filter, and retrieve platform/institution audit logs",
 )
 async def get_audit_logs(
-    user: Annotated[UserContext, Depends(get_current_user)],
+    user: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_AUDIT_TRAIL))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     institution_id: str | None = Query(None),
     action_type: str | None = Query(None),
@@ -94,9 +129,6 @@ async def get_audit_logs(
     page: int = Query(1),
     limit: int = Query(50),
 ) -> Any:
-    if PermissionKey.VIEW_AUDIT_TRAIL.value not in user.permissions:
-        raise HTTPException(status_code=403, detail="Missing permission: view_audit_trail")
-
     scope_inst_id = institution_id
     if user.active_role_name != RoleName.SUPER_ADMIN:
         scope_inst_id = user.institution_id
@@ -307,6 +339,10 @@ async def create_observation(
             "added_by": user_ctx.user_id,
         },
     )
+    row = res.mappings().first()
+    if not row:
+        raise HTTPException(status_code=500, detail="Failed to create observation")
+    observation_id = str(row["observation_id"])
     await session.execute(
         text(
             """
@@ -321,16 +357,13 @@ async def create_observation(
             "inst_id": user_ctx.institution_id,
             "user_id": user_ctx.user_id,
             "active_role_id": user_ctx.active_role_id,
-            "entity_id": None,
+            "entity_id": observation_id,
             "details": f'{{"control_id":"{payload.control_id}"}}',
         },
     )
     await session.commit()
-    row = res.mappings().first()
-    if not row:
-        raise HTTPException(status_code=500, detail="Failed to create observation")
     return {
-        "observation_id": str(row["observation_id"]),
+        "observation_id": observation_id,
         "created_at": row["created_at"].isoformat() if row["created_at"] else None,
     }
 
@@ -359,10 +392,18 @@ async def update_observation(
         raise HTTPException(status_code=400, detail="No update values provided")
     query = f"update audit_observations set {', '.join(fields)} where observation_id = :observation_id and institution_id = :inst_id and added_by = :user_id and status in ('open', 'acknowledged') returning observation_id"
     res = await session.execute(text(query), params)
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Observation not found or is not editable")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="audit_observation_updated",
+        entity_type="audit_observation",
+        entity_id=observation_id,
+    )
+    await session.commit()
     return {"observation_id": str(row["observation_id"]), "updated": True}
 
 
@@ -387,10 +428,18 @@ async def delete_observation(
         ),
         {"observation_id": observation_id, "inst_id": user_ctx.institution_id, "user_id": user_ctx.user_id},
     )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Observation not found or cannot be deleted")
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="audit_observation_deleted",
+        entity_type="audit_observation",
+        entity_id=observation_id,
+    )
+    await session.commit()
     return {"observation_id": str(row["observation_id"]), "deleted": True}
 
 
@@ -399,17 +448,11 @@ async def draft_observation(
     payload: DraftObservationPayload,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.ADD_AUDIT_OBSERVATIONS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> dict[str, Any]:
-    if user_ctx.active_role_name != RoleName.AUDITOR:
-        raise HTTPException(status_code=403, detail="Only auditors can draft observations")
-    base_text = payload.observation_text.strip()
-    if not base_text:
-        base_text = "Evidence submitted for this control should be reviewed for sufficiency."
-    draft = (
-        f"Potential gap noted for control {payload.control_id or 'the selected control'}: {base_text} "
-        "Please confirm that the evidence is complete, current, and aligned with the stated requirement."
+) -> RedirectResponse:
+    return RedirectResponse(
+        url="/api/v1/ai/audit/draft-observation",
+        status_code=307,
     )
-    return {"draft": draft}
 
 
 @router.post("/smart-sample", summary="Create a lightweight risk-priority sample of evidence items")
@@ -417,41 +460,11 @@ async def smart_sample(
     payload: SmartSamplePayload,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_AUDIT_REPORTS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> list[dict[str, Any]]:
-    if user_ctx.active_role_name != RoleName.AUDITOR:
-        raise HTTPException(status_code=403, detail="Only auditors can use smart sampling")
-
-    assessment_check = await session.execute(
-        text("select assessment_id from assessments where assessment_id = :assessment_id and institution_id = :inst_id"),
-        {"assessment_id": payload.assessment_id, "inst_id": user_ctx.institution_id},
+) -> RedirectResponse:
+    return RedirectResponse(
+        url="/api/v1/ai/audit/smart-sample",
+        status_code=307,
     )
-    if not assessment_check.mappings().first():
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    res = await session.execute(
-        text(
-            """
-            select evidence_id, control_id, file_name, approval_status
-              from evidence_documents
-             where institution_id = :inst_id
-               and control_id is not null
-             order by uploaded_at desc
-            """
-        ),
-        {"inst_id": user_ctx.institution_id},
-    )
-    rows = res.mappings().all()
-
-    samples = []
-    for row in rows:
-        reason = "Missing or pending evidence" if row["approval_status"] != "approved" else "Evidence present but should be reviewed"
-        samples.append({
-            "evidence_id": str(row["evidence_id"]),
-            "control_id": row["control_id"],
-            "file_name": row["file_name"],
-            "reason": reason,
-        })
-    return samples[:8]
 
 
 @router.get("/reports", summary="List audit reports for the current institution")
@@ -462,9 +475,13 @@ async def list_reports(
     res = await session.execute(
         text(
             """
-            select report_id, assessment_id, report_name, report_type, file_path, generated_by, generated_at
-              from audit_reports
-             where institution_id = :inst_id
+            select ar.report_id, ar.assessment_id, ar.report_name, ar.report_type, ar.file_path,
+                   ar.generated_by, u.full_name as generated_by_name, ar.generated_at,
+                   a.framework_name
+              from audit_reports ar
+              left join assessments a on a.assessment_id = ar.assessment_id
+              left join users u on u.user_id = ar.generated_by
+             where ar.institution_id = :inst_id
              order by generated_at desc
             """
         ),
@@ -479,6 +496,8 @@ async def list_reports(
             "report_type": row["report_type"],
             "file_path": row["file_path"],
             "generated_by": str(row["generated_by"]) if row["generated_by"] else None,
+            "generated_by_name": row["generated_by_name"],
+            "framework_name": row["framework_name"],
             "generated_at": row["generated_at"].isoformat() if row["generated_at"] else None,
         }
         for row in rows
@@ -504,33 +523,20 @@ async def generate_report(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    res = await session.execute(
-        text(
-            """
-            insert into audit_reports (
-                institution_id, assessment_id, report_name, report_type, file_path, generated_by
-            ) values (
-                :inst_id, :assessment_id, :report_name, :report_type, :file_path, :generated_by
-            ) returning report_id, generated_at
-            """
-        ),
-        {
-            "inst_id": user_ctx.institution_id,
-            "assessment_id": assessment_id,
-            "report_name": report_name,
-            "report_type": report_type,
-            "file_path": f"/reports/{report_name.lower().replace(' ', '-')}.html",
-            "generated_by": user_ctx.user_id,
-        },
+    row = await create_audit_report_entry(
+        session,
+        institution_id=user_ctx.institution_id,
+        assessment_id=assessment_id,
+        report_name=report_name,
+        report_type=report_type,
+        file_path=f"/reports/{report_name.lower().replace(' ', '-')}.html",
+        generated_by=user_ctx.user_id,
     )
-    await session.commit()
-    row = res.mappings().first()
-    if not row:
-        raise HTTPException(status_code=500, detail="Failed to create report")
 
     observation_count = await session.execute(text("select count(*) from audit_observations where assessment_id = :assessment_id and institution_id = :inst_id"), {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id})
     gap_count = await session.execute(text("select count(*) from compliance_gaps where assessment_id = :assessment_id and institution_id = :inst_id"), {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id})
     evidence_count = await session.execute(text("select count(*) from evidence_documents where institution_id = :inst_id and control_id is not null"), {"inst_id": user_ctx.institution_id})
+    await session.commit()
 
     return {
         "report_id": str(row["report_id"]),

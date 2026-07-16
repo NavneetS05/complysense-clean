@@ -24,9 +24,9 @@ Schema source: `schema.sql`.
 | `mitigation_tasks` | Remediation tasks | Used by tasks and department pages |
 | `evidence_documents` | Uploaded evidence metadata | Used by evidence, audit, tasks |
 | `incidents` | Security incidents | Used by incidents and security AI proxy |
-| `incident_timeline` | Incident action history | Read by incident detail; write path not found |
+| `incident_timeline` | Incident action history | Written on incident create/update and read by incident detail/dashboard stats |
 | `vendors` | Vendor register | Used by vendors |
-| `vendor_risk_assessments` | Vendor risk history | Read by vendors; write path not found in main vendor router |
+| `vendor_risk_assessments` | Vendor risk history | Read by vendors; written by manual upsert and AI contract analysis |
 | `generated_policies` | Policy drafts and statuses | Used by policies |
 | `audit_observations` | Auditor observations | Used by audit workspace |
 | `audit_reports` | Generated report records | Used by policies and audit |
@@ -50,23 +50,25 @@ Partially Implemented:
 
 ## Indexes
 
-Partially Implemented:
+Implemented for Phase 2 remediation:
 
-- Index details were not fully audited line by line in this pass.
-- Query-heavy fields include `institution_id`, status fields, user/session IDs, and foreign keys.
+- Existing `institution_id` indexes were confirmed for `control_assignments`, `assessments`, `compliance_gaps`, `mitigation_tasks`, `evidence_documents`, `incidents`, `vendors`, `generated_policies`, and `audit_logs`.
+- Added `audit_reports(institution_id)`.
+- Added `audit_logs(institution_id, created_at, action_type)`.
+- Added functional `users(lower(email))`.
+- Added `vendor_risk_assessments(vendor_id, created_at desc)`.
+- Runtime migration source: `backend/migrations/003_operational_indexes.sql`.
 
 ## Unused or Underused Tables
 
 - `allowed_role_transitions`
 - `role_assumption_sessions`
-- `incident_timeline` write path
+- `incident_timeline` is now used, but timeline detail should receive test coverage.
 - `notifications`
-- `vendor_risk_assessments` write path
+- `vendor_risk_assessments` is now used, but risk extraction from free-form AI output should receive test coverage.
 
 ## Missing Constraints and Improvements
 
-- Add stricter enum/check constraints for status/severity fields if not already present.
-- Add file size/type metadata validation constraints or application-level enforcement for evidence.
-- Ensure all tenant-scoped tables have indexes on `institution_id`.
-- Ensure audit/event tables have indexes on `created_at`, `institution_id`, and `action_type`.
-
+- Add stricter database check constraints for status/severity fields if not already present; application-level enum validation is now in place on remediated routers.
+- Evidence upload now has application-level file size/type validation and a malware-scan hook.
+- Framework-specific weighting for assessment scoring is a product decision; current scoring intentionally treats DPDP/ISO/NIST responses the same.

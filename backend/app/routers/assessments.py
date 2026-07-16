@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,9 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
+from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
+
+
+class AssessmentResponseValue(StrEnum):
+    YES = "yes"
+    NO = "no"
+    PARTIAL = "partial"
+    FULLY_IMPLEMENTED = "fully implemented"
+    NOT_IMPLEMENTED = "not implemented"
 
 
 class CreateAssessmentPayload(BaseModel):
@@ -26,7 +36,7 @@ class CreateAssessmentPayload(BaseModel):
 class SaveAssessmentResponsePayload(BaseModel):
     question_id: str
     control_id: str
-    response_value: str
+    response_value: AssessmentResponseValue
     score_value: float | None = None
 
 
@@ -77,6 +87,15 @@ async def create_assessment(
         },
     )
     row = res.mappings().first()
+    if row:
+        await AuditLogRepository(session).write(
+            institution_id=user_ctx.institution_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="assessment_created",
+            entity_type="assessment",
+            entity_id=str(row["assessment_id"]),
+        )
     await session.commit()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create assessment")
@@ -148,6 +167,15 @@ async def save_assessment_response(
             returning response_id
         """
         res = await session.execute(text(insert_query), {"assessment_id": assessment_id, "question_id": payload.question_id, "control_id": payload.control_id, "response_value": payload.response_value, "score_value": payload.score_value, "answered_by": user_ctx.user_id})
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="assessment_response_saved",
+        entity_type="assessment",
+        entity_id=assessment_id,
+        action_details={"question_id": payload.question_id, "control_id": payload.control_id},
+    )
     await session.commit()
     return {"status": "saved", "question_id": payload.question_id, "response_value": payload.response_value}
 
@@ -179,6 +207,25 @@ async def submit_assessment(
 
     yes_count = sum(1 for row in responses if str(row["response_value"]).lower() in {"yes", "fully implemented"})
     percentage = round((yes_count / max(len(responses), 1)) * 100, 2) if responses else 0.0
+
+    await session.execute(
+        text(
+            """
+            delete from compliance_results
+            where assessment_id = :assessment_id and institution_id = :inst_id
+            """
+        ),
+        {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id},
+    )
+    await session.execute(
+        text(
+            """
+            delete from compliance_gaps
+            where assessment_id = :assessment_id and institution_id = :inst_id
+            """
+        ),
+        {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id},
+    )
 
     result_query = """
         insert into compliance_results (assessment_id, institution_id, framework_name, compliance_percentage, compliant_controls, partial_controls, non_compliant_controls, critical_gap_count)
@@ -224,6 +271,15 @@ async def submit_assessment(
             },
         )
 
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="assessment_submitted",
+        entity_type="assessment",
+        entity_id=assessment_id,
+        action_details={"gap_count": len(gaps), "compliance_percentage": percentage},
+    )
     await session.commit()
     return {
         "assessment_id": str(assessment_row["assessment_id"]),
