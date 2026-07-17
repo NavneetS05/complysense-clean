@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 
 const incidentTypes = ["Data Breach", "Unauthorized Access", "Ransomware", "Phishing Attack", "System Failure", "DDoS Attack", "Other"];
 const dataCategories = ["Student Personal Data", "Staff Personal Data", "Financial Records", "Research Data", "Authentication Credentials", "System Configuration", "Other"];

@@ -19,6 +19,10 @@ import {
   Clock,
 } from "lucide-react";
 
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+
 type RiskAssessment = {
   vendor_risk_id: string;
   risk_level: string;
@@ -53,7 +57,11 @@ export default function VendorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [vendor, setVendor] = useState<Vendor | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error, refetch } = useApi(async () => {
+    if (!id) return null as any;
+    const res = await api.get<Vendor>(`/api/v1/vendors/${id}`);
+    return res.data as Vendor;
+  }, [id]);
 
   // Contract Analyzer AI drawer
   const [analyzerOpen, setAnalyzerOpen] = useState(false);
@@ -63,21 +71,10 @@ export default function VendorDetail() {
   const [aiResult, setAiResult] = useState<any>(null);
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
 
-  async function load() {
-    if (!id) return;
-    try {
-      const { data } = await api.get<Vendor>(`/api/v1/vendors/${id}`);
-      setVendor(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void load();
-  }, [id]);
+    if (!data) return;
+    setVendor(data as Vendor | null);
+  }, [data]);
 
   const handleAnalyzeContract = async () => {
     if (!id || !contractText.trim()) return;
@@ -97,7 +94,8 @@ export default function VendorDetail() {
     }
   };
 
-  if (loading) return <div className="page-panel">Loading vendor details…</div>;
+  if (loading) return <div className="page-panel"><Loading /></div>;
+  if (error) return <div className="page-panel"><ErrorState message={error.message} onRetry={() => void refetch()} /></div>;
   if (!vendor) return <div className="page-panel">Vendor not found.</div>;
 
   const latestRisk = vendor.risk_assessments[0];

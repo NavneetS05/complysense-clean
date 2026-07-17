@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from typing import Annotated, Any
+from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -22,6 +23,11 @@ router = APIRouter(prefix="/vendor", tags=["AI Vendor"])
 class AnalyzeContractProxyRequest(BaseModel):
     vendor_id: str
     contract_text: str
+    conversation_id: str | None = None
+
+
+class VendorChatProxyRequest(BaseModel):
+    query: str
     conversation_id: str | None = None
 
 
@@ -59,6 +65,22 @@ def _extract_dpdp_compliant(result: dict[str, Any]) -> bool | None:
         if normalized in {"false", "no", "non-compliant", "noncompliant"}:
             return False
     return None
+
+
+@router.post("/chat", summary="Vendor reviewer AI Q&A")
+async def ai_vendor_chat(
+    payload: VendorChatProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    conversation_id = payload.conversation_id or str(uuid4())
+    result = await forward_to_ai_service(
+        "/vendor/chat",
+        {"query": payload.query, "conversation_id": conversation_id},
+        authorization,
+    )
+    result["conversation_id"] = conversation_id
+    return result
 
 
 @router.post("/analyze-contract", summary="Analyze vendor contract with compliance checks")
@@ -108,8 +130,13 @@ async def ai_analyze_contract(
     }
 
     result = await forward_to_ai_service("/vendor/analyze-contract", ai_payload, authorization)
-    assessment_summary = result.get("assessment_summary") or result.get("summary") or result.get("response")
-    recommendations = result.get("recommendations") or result.get("recommended_actions") or result.get("citations")
+    # Normalize returned AI payload to stable keys used by frontend
+    assessment_summary = result.get("assessment_summary") or result.get("summary") or result.get("response") or ""
+    recommendations = result.get("recommendations") or result.get("recommended_actions") or result.get("citations") or ""
+    result["assessment_summary"] = assessment_summary
+    result["recommendations"] = recommendations
+    result["risk_level"] = _extract_risk_level(result)
+    result["dpdp_compliant"] = _extract_dpdp_compliant(result)
 
     assessment_res = await session.execute(
         text(

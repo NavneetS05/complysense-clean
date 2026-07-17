@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
 
 type Assessment = {
   assessment_id: string;
@@ -25,21 +28,21 @@ export default function ReportBuilder() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ assessment_id: "", report_name: "", report_type: "Custom" });
   const [submitting, setSubmitting] = useState(false);
-
-  async function load() {
+  const { data, loading, error, refetch } = useApi(async () => {
     const [{ data: assessmentData }, { data: reportData }] = await Promise.all([
       api.get("/api/v1/assessments"),
       api.get("/api/v1/audit/reports"),
     ]);
     const assessmentsList = Array.isArray(assessmentData) ? assessmentData : assessmentData?.assessments ?? [];
     const reportsList = Array.isArray(reportData) ? reportData : reportData?.reports ?? [];
-    setAssessments(assessmentsList.filter((item: Assessment) => item.assessment_status === "completed"));
-    setReports(reportsList);
-  }
+    return { assessmentsList, reportsList };
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (!data) return;
+    setAssessments((data.assessmentsList as Assessment[]).filter((item) => item.assessment_status === "completed"));
+    setReports(data.reportsList as ReportItem[]);
+  }, [data]);
 
   async function handleGenerate(event: React.FormEvent) {
     event.preventDefault();
@@ -100,32 +103,34 @@ export default function ReportBuilder() {
         </form>
       ) : null}
 
-      <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, background: "white", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-              <th style={{ padding: 10 }}>Report Name</th>
-              <th style={{ padding: 10 }}>Assessment</th>
-              <th style={{ padding: 10 }}>Type</th>
-              <th style={{ padding: 10 }}>Generated</th>
-              <th style={{ padding: 10 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.map((report) => (
-              <tr key={report.report_id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                <td style={{ padding: 10 }}>{report.report_name}</td>
-                <td style={{ padding: 10 }}>{report.assessment_id || "—"}</td>
-                <td style={{ padding: 10 }}>{report.report_type || "Custom"}</td>
-                <td style={{ padding: 10 }}>{report.generated_at ? new Date(report.generated_at).toLocaleString() : "—"}</td>
-                <td style={{ padding: 10 }}>
-                  <Link to={`/auditor/reports/${report.report_id}`}>View</Link>
-                </td>
+      {loading ? <Loading /> : error ? <ErrorState message={error.message} onRetry={() => void refetch()} /> : (
+        <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, background: "white", overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
+                <th style={{ padding: 10 }}>Report Name</th>
+                <th style={{ padding: 10 }}>Assessment</th>
+                <th style={{ padding: 10 }}>Type</th>
+                <th style={{ padding: 10 }}>Generated</th>
+                <th style={{ padding: 10 }}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {reports.map((report) => (
+                <tr key={report.report_id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: 10 }}>{report.report_name}</td>
+                  <td style={{ padding: 10 }}>{report.assessment_id || "—"}</td>
+                  <td style={{ padding: 10 }}>{report.report_type || "Custom"}</td>
+                  <td style={{ padding: 10 }}>{report.generated_at ? new Date(report.generated_at).toLocaleString() : "—"}</td>
+                  <td style={{ padding: 10 }}>
+                    <Link to={`/auditor/reports/${report.report_id}`}>View</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 interface IncidentItem {
   incident_id: string;
@@ -39,20 +43,16 @@ function formatDeadline(incident: IncidentItem) {
 export default function Incidents() {
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
 
-  async function load() {
-    try {
-      const { data } = await api.get<IncidentItem[]>("/api/v1/incidents", { params: { limit: 100 } });
-      setIncidents(data);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get<IncidentItem[]>("/api/v1/incidents", { params: { limit: 100 } });
+    return Array.isArray(res.data) ? res.data : res.data?.incidents ?? [];
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (!data) return;
+    setIncidents(data as IncidentItem[]);
+  }, [data]);
 
   const filtered = useMemo(() => {
     return incidents.filter((incident) => statusFilter === "all" || incident.status === statusFilter);
@@ -110,9 +110,11 @@ export default function Incidents() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ padding: 16 }}>Loading…</td></tr>
+              <tr><td colSpan={7} style={{ padding: 16 }}><Loading /></td></tr>
+            ) : error ? (
+              <tr><td colSpan={7} style={{ padding: 16 }}><ErrorState message={error.message} onRetry={() => void refetch()} /></td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: 16 }}>No incidents logged</td></tr>
+              <tr><td colSpan={7} style={{ padding: 16 }}><EmptyState title="No incidents" description="No incidents logged." /></td></tr>
             ) : filtered.map((incident) => (
               <tr key={incident.incident_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: 10 }}>{incident.severity}</td>

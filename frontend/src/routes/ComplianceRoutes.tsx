@@ -13,6 +13,7 @@ import Gaps from "../pages/compliance/Gaps";
 import Notifications from "../pages/compliance/Notifications";
 import Policies from "../pages/compliance/Policies";
 import Tasks from "../pages/compliance/Tasks";
+import Chat from "../pages/compliance/Chat";
 
 export const complianceRoutes: RouteObject = {
   path: "/compliance",
@@ -31,6 +32,7 @@ export const complianceRoutes: RouteObject = {
     { path: "assessments/:id", element: <AssessmentRunner /> },
     { path: "policies", element: <Policies /> },
     { path: "tasks", element: <Tasks /> },
-    { path: "notifications", element: <Notifications /> }
+    { path: "notifications", element: <Notifications /> },
+    { path: "chat", element: <Chat /> }
   ]
 };

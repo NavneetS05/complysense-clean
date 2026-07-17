@@ -1,6 +1,7 @@
 # Use: Backend proxy router for Compliance Officer AI features (Triage & Regulatory Change).
 
 from typing import Annotated, Any
+from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -12,6 +13,17 @@ from app.domain.rbac import PermissionKey
 from app.schemas.auth import UserContext
 from app.routers.ai.proxy import forward_to_ai_service
 
+
+def _normalize_ai_result(result: dict[str, Any] | None) -> dict[str, Any]:
+    if result is None:
+        result = {}
+    # stable top-level keys for frontend
+    result["assessment_summary"] = result.get("assessment_summary") or result.get("summary") or result.get("response") or ""
+    result["recommendations"] = result.get("recommendations") or result.get("recommended_actions") or result.get("citations") or ""
+    result["risk_level"] = result.get("risk_level") or result.get("severity") or None
+    result["dpdp_compliant"] = result.get("dpdp_compliant") if isinstance(result.get("dpdp_compliant"), bool) else None
+    return result
+
 router = APIRouter(prefix="/compliance", tags=["AI Compliance"])
 
 
@@ -22,6 +34,28 @@ class TriageProxyRequest(BaseModel):
 class RegulatoryChangeProxyRequest(BaseModel):
     circular_text: str
     conversation_id: str | None = None
+
+
+class ComplianceChatProxyRequest(BaseModel):
+    query: str
+    conversation_id: str | None = None
+
+
+@router.post("/chat", summary="Compliance officer AI Q&A")
+async def ai_compliance_chat(
+    payload: ComplianceChatProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    conversation_id = payload.conversation_id or str(uuid4())
+    result = await forward_to_ai_service(
+        "/compliance/chat",
+        {"query": payload.query, "conversation_id": conversation_id},
+        authorization,
+    )
+    result = _normalize_ai_result(result)
+    result["conversation_id"] = conversation_id
+    return result
 
 
 @router.post("/triage", summary="Run priority AI triage for compliance officer")
@@ -74,7 +108,8 @@ async def ai_compliance_triage(
         "conversation_id": payload.conversation_id
     }
     
-    return await forward_to_ai_service("/compliance/triage", ai_payload, authorization)
+    res = await forward_to_ai_service("/compliance/triage", ai_payload, authorization)
+    return _normalize_ai_result(res)
 
 
 @router.post("/regulatory-change", summary="Analyze regulatory circular against compliance posture")
@@ -126,4 +161,5 @@ async def ai_regulatory_change(
         "conversation_id": payload.conversation_id
     }
 
-    return await forward_to_ai_service("/compliance/regulatory-change", ai_payload, authorization)
+    res = await forward_to_ai_service("/compliance/regulatory-change", ai_payload, authorization)
+    return _normalize_ai_result(res)

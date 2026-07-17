@@ -21,6 +21,7 @@ from app.database import get_db_session
 from app.domain.rbac import PermissionKey
 from app.mongodb import get_mongo_database
 from app.repositories.audit import AuditLogRepository
+from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 from app.storage.control_library import ControlLibraryStore
 
@@ -185,6 +186,16 @@ async def create_control_assignment(
             entity_id=str(row["assignment_id"]),
             action_details={"control_id": payload.control_id},
         )
+        if payload.assigned_to:
+            await NotificationRepository(session).create(
+                institution_id=str(user_ctx.institution_id),
+                user_id=str(payload.assigned_to),
+                title="New control assignment",
+                message=f"You have been assigned a new control: {payload.control_id}",
+                notification_type="control_assigned",
+                related_entity_type="control_assignment",
+                related_entity_id=str(row["assignment_id"]),
+            )
     await session.commit()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create control assignment")

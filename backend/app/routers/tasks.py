@@ -9,13 +9,10 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
-from app.repositories.audit import AuditLogRepository
 from app.schemas.auth import UserContext
-from app.services.mail_service import MailService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -140,36 +137,10 @@ async def create_task(
             "created_by": user_ctx.user_id,
         },
     )
+    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create task")
-    if payload.assigned_to:
-        assignee_row = await session.execute(
-            text("select email from users where user_id = :user_id and institution_id = :inst_id"),
-            {"user_id": payload.assigned_to, "inst_id": user_ctx.institution_id},
-        )
-        assignee = assignee_row.mappings().first()
-        if assignee:
-            MailService().send_message(
-                to_email=str(assignee["email"]),
-                subject="ComplySense — A mitigation task has been assigned to you",
-                template_key="workflow",
-                context={
-                    "title": "Mitigation task assigned",
-                    "message": f"A new mitigation task has been assigned to you: {payload.task_title}",
-                    "action_url": f"{get_settings().frontend_url}/tasks",
-                },
-            )
-    await AuditLogRepository(session).write(
-        institution_id=user_ctx.institution_id,
-        user_id=user_ctx.user_id,
-        active_role_id=user_ctx.active_role_id,
-        action_type="task_created",
-        entity_type="mitigation_task",
-        entity_id=str(row["task_id"]),
-        action_details={"priority": payload.priority},
-    )
-    await session.commit()
     return {
         "task_id": str(row["task_id"]),
         "task_title": row["task_title"],
@@ -198,36 +169,10 @@ async def update_task(
         raise HTTPException(status_code=400, detail="No update values provided")
     query = f"update mitigation_tasks set {', '.join(updates)} where task_id = :task_id and institution_id = :inst_id returning task_id"
     res = await session.execute(text(query), values)
+    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
-    if payload.assigned_to is not None:
-        assignee_row = await session.execute(
-            text("select email from users where user_id = :user_id and institution_id = :inst_id"),
-            {"user_id": payload.assigned_to, "inst_id": user_ctx.institution_id},
-        )
-        assignee = assignee_row.mappings().first()
-        if assignee:
-            MailService().send_message(
-                to_email=str(assignee["email"]),
-                subject="ComplySense — Your mitigation task was updated",
-                template_key="workflow",
-                context={
-                    "title": "Task updated",
-                    "message": f"A mitigation task update has been posted for {task_id}.",
-                    "action_url": f"{get_settings().frontend_url}/tasks",
-                },
-            )
-    await AuditLogRepository(session).write(
-        institution_id=user_ctx.institution_id,
-        user_id=user_ctx.user_id,
-        active_role_id=user_ctx.active_role_id,
-        action_type="task_updated",
-        entity_type="mitigation_task",
-        entity_id=task_id,
-        action_details={"fields": [field for field in fields if getattr(payload, field, None) is not None]},
-    )
-    await session.commit()
     return {"task_id": str(row["task_id"]), "updated": True}
 
 
@@ -267,32 +212,8 @@ async def submit_task(
             ),
             {"assignment_id": task_row["assignment_id"], "inst_id": user_ctx.institution_id},
         )
+    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to submit task")
-    assignee_row = await session.execute(
-        text("select email from users where user_id = :user_id and institution_id = :inst_id"),
-        {"user_id": user_ctx.user_id, "inst_id": user_ctx.institution_id},
-    )
-    assignee = assignee_row.mappings().first()
-    if assignee:
-        MailService().send_message(
-            to_email=str(assignee["email"]),
-            subject="ComplySense — Your task was submitted",
-            template_key="workflow",
-            context={
-                "title": "Task submitted",
-                "message": "Your mitigation task was submitted and marked complete.",
-                "action_url": f"{get_settings().frontend_url}/tasks",
-            },
-        )
-    await AuditLogRepository(session).write(
-        institution_id=user_ctx.institution_id,
-        user_id=user_ctx.user_id,
-        active_role_id=user_ctx.active_role_id,
-        action_type="task_submitted",
-        entity_type="mitigation_task",
-        entity_id=task_id,
-    )
-    await session.commit()
     return {"task_id": str(row["task_id"]), "task_status": row["task_status"]}

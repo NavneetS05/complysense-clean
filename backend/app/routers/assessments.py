@@ -134,6 +134,29 @@ async def get_assessment(
     }
 
 
+@router.get("/{assessment_id}/responses", summary="List saved responses for an assessment")
+async def list_assessment_responses(
+    assessment_id: str,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_ASSESSMENTS))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[dict[str, Any]]:
+    query = "select response_id, question_id, control_id, response_value, score_value, answered_by, created_at from assessment_responses where assessment_id = :assessment_id and institution_id = :inst_id"
+    res = await session.execute(text(query), {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id})
+    rows = res.mappings().all()
+    return [
+        {
+            "response_id": str(r["response_id"]),
+            "question_id": r["question_id"],
+            "control_id": r["control_id"],
+            "response_value": r["response_value"],
+            "score_value": float(r["score_value"]) if r["score_value"] is not None else None,
+            "answered_by": str(r["answered_by"]) if r["answered_by"] else None,
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+
+
 @router.patch("/{assessment_id}/responses", summary="Save one assessment response")
 async def save_assessment_response(
     assessment_id: str,

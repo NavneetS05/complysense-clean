@@ -1,8 +1,11 @@
 // Use: View screen for compiled PDF audit reports.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
 
 type ReportDetail = {
   report_id: string;
@@ -23,28 +26,14 @@ type ReportDetail = {
 
 export default function ReportView() {
   const { id } = useParams();
-  const [report, setReport] = useState<ReportDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get(`/api/v1/audit/reports/${id}`);
-        setReport(data);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data: report, loading, error, refetch } = useApi(async () => {
+    const res = await api.get(`/api/v1/audit/reports/${id}`);
+    return res.data as ReportDetail;
   }, [id]);
 
-  if (loading) {
-    return <div className="page-panel">Loading report…</div>;
-  }
-
-  if (!report) {
-    return <div className="page-panel">Report not found.</div>;
-  }
+  if (loading) return <div className="page-panel"><Loading /></div>;
+  if (error) return <div className="page-panel"><ErrorState message={error.message} onRetry={() => void refetch()} /></div>;
+  if (!report) return <div className="page-panel">Report not found.</div>;
 
   return (
     <div className="page-panel" style={{ display: "grid", gap: 16 }}>

@@ -1,6 +1,7 @@
 // Use: Lists uploaded files and approval history for the department.
 
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { api } from "../../lib/api";
 
 type EvidenceItem = {
@@ -18,6 +19,7 @@ export default function Evidence() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ control_id: "", assignment_id: "", description: "", file: null as File | null });
   const [submitting, setSubmitting] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -58,6 +60,23 @@ export default function Evidence() {
     }
   }
 
+  async function downloadEvidence(evidenceId: string, fileName: string) {
+    setDownloading(evidenceId);
+    try {
+      const response = await api.get(`/api/v1/evidence/${evidenceId}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download evidence.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   return (
     <div className="page-panel" style={{ display: "grid", gap: 16 }}>
       <div>
@@ -82,6 +101,7 @@ export default function Evidence() {
                 <th style={{ padding: 10 }}>Control</th>
                 <th style={{ padding: 10 }}>Status</th>
                 <th style={{ padding: 10 }}>Uploaded</th>
+                <th style={{ padding: 10 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -91,6 +111,15 @@ export default function Evidence() {
                   <td style={{ padding: 10 }}>{row.control_id || "—"}</td>
                   <td style={{ padding: 10 }}>{row.approval_status || "pending"}</td>
                   <td style={{ padding: 10 }}>{row.uploaded_at ? new Date(row.uploaded_at).toLocaleString() : "—"}</td>
+                  <td style={{ padding: 10 }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={downloading === row.evidence_id}
+                      onClick={() => void downloadEvidence(row.evidence_id, row.file_name || "evidence")}
+                    >
+                      {downloading === row.evidence_id ? "Downloading…" : <><Download size={14} /> Download</>}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

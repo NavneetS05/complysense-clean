@@ -1,8 +1,11 @@
 // Use: Matrix view of identified compliance gaps sorted by framework.
 
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type GapRow = {
   gap_id: string;
@@ -15,26 +18,24 @@ type GapRow = {
 };
 
 export default function Gaps() {
-  const [gaps, setGaps] = useState<GapRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/gaps");
-        setGaps(Array.isArray(data) ? data : []);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/gaps");
+    return Array.isArray(res.data) ? res.data : res.data?.gaps ?? [];
   }, []);
+
+  const gaps: GapRow[] = data ?? [];
 
   return (
     <div className="page-panel">
       <h2>Compliance Gaps</h2>
       <p>Open and in-progress remediation items across the institution.</p>
-      {loading ? <p>Loading gaps…</p> : (
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorState message={error.message} onRetry={() => void refetch()} />
+      ) : gaps.length === 0 ? (
+        <EmptyState title="No gaps" description="No compliance gaps found." actionLabel="Refresh" onAction={() => void refetch()} />
+      ) : (
         <div className="card" style={{ padding: 16, marginTop: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>

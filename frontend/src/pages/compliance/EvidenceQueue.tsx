@@ -1,7 +1,10 @@
 // Use: Approval queue for verification of uploaded evidence documents.
 
-import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type EvidenceItem = {
   evidence_id: string;
@@ -13,26 +16,24 @@ type EvidenceItem = {
 };
 
 export default function EvidenceQueue() {
-  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/evidence");
-        setEvidence(Array.isArray(data) ? data : []);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/evidence");
+    return Array.isArray(res.data) ? res.data : res.data?.evidence ?? [];
   }, []);
+
+  const evidence: EvidenceItem[] = data ?? [];
 
   return (
     <div className="page-panel">
       <h2>Evidence Queue</h2>
       <p>Pending evidence submissions requiring review.</p>
-      {loading ? <p>Loading evidence queue…</p> : (
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorState message={error.message} onRetry={() => void refetch()} />
+      ) : evidence.length === 0 ? (
+        <EmptyState title="No evidence" description="No pending evidence submissions." actionLabel="Refresh" onAction={() => void refetch()} />
+      ) : (
         <div className="card" style={{ padding: 16, marginTop: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>

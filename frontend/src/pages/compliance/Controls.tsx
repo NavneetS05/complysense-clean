@@ -1,8 +1,12 @@
 // Use: Kanban board for managing institution control assignments.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type ControlAssignment = {
   assignment_id: string;
@@ -23,20 +27,12 @@ const COLUMN_META = [
 ];
 
 export default function Controls() {
-  const [controls, setControls] = useState<ControlAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/controls");
-        setControls(Array.isArray(data) ? data : []);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/controls");
+    return Array.isArray(res.data) ? res.data : res.data?.controls ?? [];
   }, []);
+
+  const controls: ControlAssignment[] = data ?? [];
 
   const grouped = useMemo(() => {
     return COLUMN_META.reduce((acc, column) => {
@@ -49,7 +45,13 @@ export default function Controls() {
     <div className="page-panel">
       <h2>Controls</h2>
       <p>Operational control assignments grouped by status.</p>
-      {loading ? <p>Loading controls…</p> : (
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorState message={error.message} onRetry={() => void refetch()} />
+      ) : controls.length === 0 ? (
+        <EmptyState title="No controls" description="No control assignments found." actionLabel="Refresh" onAction={() => void refetch()} />
+      ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(220px, 1fr))", gap: 12, overflowX: "auto", marginTop: 16 }}>
           {COLUMN_META.map((column) => (
             <div key={column.key} className="card" style={{ padding: 12, minHeight: 320 }}>

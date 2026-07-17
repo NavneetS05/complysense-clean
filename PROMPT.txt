@@ -1,412 +1,53 @@
-# Prompt: Improve ComplySense Knowledge Base, RAG Pipeline, Routing Layer, and Document Access
+Here's what's non-negotiable in a real GRC platform, mapped to what applies specifically to ComplySense's stack and constraints.
+1. Multi-tenancy isolation (highest risk in your architecture)
 
-You are working on the **ComplySense** backend AI architecture. Your task is **not to redesign the existing architecture**, but to strengthen and complete it while preserving all existing functionality.
+Every query must filter by institution_id at the query layer, not just at the API layer — a missed WHERE clause is a cross-tenant data leak, not a bug.
+Row-level security (RLS) in PostgreSQL/Neon should be the enforcement mechanism, not application-code discipline alone. If you're not using Postgres RLS policies per table, that's a real gap — app-layer filtering alone fails the moment someone adds a new query path and forgets it.
+MongoDB (control library) needs equivalent tenant-scoping on every collection query — Mongo has no RLS equivalent, so this is 100% application-enforced and needs a single shared query-builder function, not ad-hoc filters per route.
+Redis keys must be namespaced by institution_id too, or cache poisoning across tenants becomes possible.
 
-The goal is to make the Retrieval-Augmented Generation (RAG) pipeline secure, deterministic, metadata-aware, and capable of retrieving precise regulatory references without exposing unauthorized information.
+2. Audit trail immutability
 
----
+GRC platforms live or die on "who did what, when, to what evidence." The audit_logs table (if it exists — you're verifying this) must be append-only — no UPDATE or DELETE permission at the DB role level, not just app-level convention.
+Every state-changing action needs an audit entry: control status change, evidence upload/approval/rejection, policy approval, role assumption, incident creation. This isn't optional polish — auditors (real ones, using your Auditor role) will specifically check for gaps in this trail.
+Timestamps must be server-generated, never client-supplied, or the trail is falsifiable.
 
-## Existing Knowledge Base Structure
+3. Evidence integrity
 
-The fallback knowledge base must always preserve the following directory structure exactly:
+Evidence files (Supabase Storage) need checksums stored alongside the DB record, so evidence can't be silently swapped after approval without detection.
+Evidence should be immutable once approved — a new upload should create a new version, not overwrite. Version history matters for audit defensibility.
+Access to evidence download should itself be logged (who viewed what evidence, when) — this is standard in ISO 27001 and NIST SP 800-53 audit requirements.
 
-```text
-knowledge-base/
+4. RBAC + segregation of duties
 
-    dpdp/
-        dpdp.md
+The classic GRC control: the person who uploads evidence should not be the same person who approves it (even if same role in a small team, the system should support the separation for institutions that need it).
+Nine roles means the permission matrix is large — this needs to be centrally defined (a single source-of-truth permissions table/config), not scattered if role == checks across routes. Scattered checks are how privilege escalation bugs happen.
+Role assumption/impersonation (if Super Admin can view as another role) must itself be audit-logged with start/exit timestamps — you already have this in your notification events list, good sign it's designed in.
 
-    cert-in/
-        CERT_IN_Directions.md
+5. Data sovereignty (your hard constraint)
 
-    iso27001/
-        ISO-27001.md
+Ollama local-only for sensitive data is good — but verify nothing sensitive ever transits to Gemini 2.5 Flash. This needs to be enforced structurally (separate code paths / separate service boundaries), not by convention, since a refactor six months from now could accidentally route sensitive prompts through the wrong LLM call.
+Document explicitly, per AI endpoint, which model handles it and why — this itself may need to be part of your compliance posture documentation (ironic but real: a GRC platform should be able to pass its own audit).
 
-    ugc/
-        UGC_Guidelines.md
+6. Framework mapping consistency
 
-    naac/
-        naac.md
+Controls mapped to multiple frameworks (DPDp, ISO 27001, NIST CSF, NIST SP 800-53, IT Act/CERT-In, UGC/NAAC) — the mapping table needs referential integrity. A control that's "satisfied" under one framework but the mapping silently breaks for another framework is a correctness bug that undermines the whole product's value proposition.
+Framework version tracking: ISO 27001:2022 vs older versions, NIST CSF 2.0 vs 1.1 — controls mapped to a specific framework version need to say so, since requirements change between versions.
 
-    nist/
-        nist_cisf.md
-```
+7. Notification / SLA correctness
 
-If the system is connected to Supabase Storage, the same logical folder hierarchy must also exist there.
+Since this is the piece you're actually building: notifications for overdue tasks, pending approvals, evidence expiry need to be reliable, not best-effort. A missed "evidence expiring in 7 days" notification is a compliance failure for the institution using your product. Consider whether this needs a scheduled job (not just event-triggered) to catch time-based conditions (expiry, overdue) that don't have a discrete triggering event.
 
-The application should treat both sources identically.
+8. Data retention & right-to-erasure (DPDP Act specific)
 
----
+DPDP Act 2023 requires data principal rights (access, correction, erasure) — does ComplySense have any mechanism for an institution to fulfill a data subject request? This is often missed in v1 GRC builds because it's not urgent until it's legally urgent.
+Retention policies per data type (evidence, audit logs — note audit logs often need to be retained even under an erasure request, which is a real tension worth documenting explicitly).
 
-# Source Priority
+9. Export/reporting integrity
 
-The retrieval order must be:
+CERT-In reports, audit reports — exported documents need to be reproducible and tamper-evident. If two people export "the same" report at different times, and underlying data changed, the export should reflect a point-in-time snapshot, not silently be regenerated from live data without saying so.
 
-1. Supabase Storage (Primary)
-2. Local knowledge-base directory (Fallback)
+10. Frontend-specific
 
-If Supabase is unavailable, inaccessible, times out, or returns an error, automatically switch to the local fallback without requiring user intervention.
-
-This fallback should be transparent.
-
----
-
-# Synchronization Requirement
-
-The folder structure in Supabase and the local knowledge-base directory must remain identical.
-
-The loader should verify:
-
-* folders exist
-* expected markdown files exist
-* filenames match
-* metadata can be parsed
-* document loading succeeds
-
-Raise warnings for missing documents but do not crash the system.
-
----
-
-# Metadata-Based Access Control
-
-Every markdown file already contains metadata at the top.
-
-That metadata is authoritative.
-
-Never ignore it.
-
-Use metadata for:
-
-* allowed user roles
-* institution restrictions
-* framework
-* document visibility
-* retrieval eligibility
-* document identifiers
-* version information
-* publication details (if available)
-
-Before retrieval, evaluate metadata.
-
-If the user is not authorized, the document must never be retrieved, embedded, reranked, or passed to the LLM.
-
-Unauthorized documents should effectively not exist for that request.
-
----
-
-# Routing Layer
-
-The routing layer executes before retrieval.
-
-Its responsibilities include:
-
-* determining which compliance framework(s) are relevant
-* filtering inaccessible documents using metadata
-* selecting the minimum required documents
-* preventing unnecessary retrieval
-* supporting multi-framework queries when needed
-
-Examples:
-
-DPDP question
-→ route only to DPDP
-
-ISO audit checklist
-→ ISO only
-
-NAAC accreditation
-→ NAAC only
-
-UGC policy
-→ UGC only
-
-CERT-In incident reporting
-→ CERT-In only
-
-Questions involving multiple frameworks
-→ retrieve only the required frameworks.
-
-Never search the full corpus when routing can narrow the search.
-
----
-
-# Retrieval Pipeline
-
-The retrieval pipeline should be:
-
-User Query
-
-↓
-
-Intent Detection
-
-↓
-
-Metadata Filtering
-
-↓
-
-Routing Layer
-
-↓
-
-Document Selection
-
-↓
-
-Semantic Chunking
-
-↓
-
-Embedding Search
-
-↓
-
-Contextual Reranking
-
-↓
-
-LLM
-
-↓
-
-Grounded Response
-
-No stage should bypass metadata filtering.
-
----
-
-# Chunking
-
-Implement semantic/context-aware chunking.
-
-Avoid naive fixed-size splitting.
-
-Chunk boundaries should preserve:
-
-* chapters
-* sections
-* subsections
-* headings
-* lists
-* tables
-* bullet hierarchy
-
-Each chunk should carry metadata such as:
-
-* document name
-* framework
-* chapter
-* section
-* subsection
-* page number (if available)
-* source path
-* version
-
-Every retrieved chunk must retain this metadata throughout the pipeline.
-
----
-
-# Grounded Citations
-
-Responses should identify where information came from.
-
-Whenever possible, cite:
-
-* framework
-* document
-* chapter
-* section
-* subsection
-* page number
-
-Example:
-
-"According to ISO 27001, Clause 5.2 (Page 18)..."
-
-or
-
-"DPDP Act — Chapter III — Section 8..."
-
-The response should never fabricate citations.
-
-If page information is unavailable, omit it.
-
----
-
-# Security Requirements
-
-The RAG system must never retrieve unauthorized content.
-
-This includes:
-
-* embedding search
-* reranking
-* context assembly
-* final prompt
-
-Access control happens before retrieval.
-
-No unauthorized chunk should reach the LLM.
-
----
-
-# Prompt Improvements
-
-Review and improve:
-
-* system prompts
-* task prompts
-* routing prompts
-* retrieval prompts
-* citation prompts
-
-Goals:
-
-* reduce hallucinations
-* improve deterministic routing
-* improve citation quality
-* enforce metadata restrictions
-* prevent unauthorized document usage
-* ensure framework-specific responses
-
-Do not remove existing functionality.
-
-Improve it while remaining compatible.
-
----
-
-# Supabase Integration
-
-Review the Supabase implementation.
-
-Verify:
-
-* connection handling
-* authentication
-* storage access
-* folder traversal
-* markdown loading
-* metadata parsing
-* caching
-* retry strategy
-* graceful failure handling
-
-If Supabase becomes unavailable:
-
-* automatically switch to the local knowledge-base directory
-* continue serving requests
-* log the reason for fallback
-
----
-
-# Local Knowledge Base
-
-Ensure the local fallback uses exactly:
-
-```text
-knowledge-base/
-
-    dpdp/
-        dpdp.md
-
-    cert-in/
-        CERT_IN_Directions.md
-
-    iso27001/
-        ISO-27001.md
-
-    ugc/
-        UGC_Guidelines.md
-
-    naac/
-        naac.md
-
-    nist/
-        nist_cisf.md
-```
-
-Do not change this structure.
-
-All loaders should assume this directory layout.
-
----
-
-# Validation & Testing
-
-Implement automated tests covering both Supabase and local storage.
-
-Tests should verify:
-
-### Document Discovery
-
-* all expected folders are found
-* all markdown files are detected
-* metadata is parsed correctly
-
-### Routing
-
-Verify framework-specific queries retrieve only the intended documents.
-
-Examples:
-
-* DPDP query → DPDP only
-* ISO query → ISO only
-* UGC query → UGC only
-* Multi-framework query → only relevant frameworks
-
-### Metadata Restrictions
-
-Create tests where:
-
-* an authorized user receives the document
-* an unauthorized user does not
-* unauthorized chunks never enter retrieval
-
-### Fallback
-
-Simulate:
-
-* Supabase offline
-* network timeout
-* authentication failure
-* missing bucket
-* missing file
-
-Ensure retrieval automatically switches to the local knowledge-base directory.
-
-### Citation Validation
-
-Verify every answer references the correct:
-
-* framework
-* document
-* chapter
-* section
-* subsection
-* page (when available)
-
-### Retrieval Accuracy
-
-Ensure routing selects the correct document in both storage modes.
-
-Results from:
-
-* Supabase
-* local knowledge-base
-
-should remain functionally equivalent for identical documents.
-
----
-
-# Constraints
-
-* Preserve the existing architecture unless a change is necessary.
-* Do not remove existing features.
-* Maintain backward compatibility.
-* Keep metadata as the authoritative source for access control.
-* Ensure deterministic routing before retrieval.
-* Never expose unauthorized knowledge.
-* Keep Supabase as the primary source and the local knowledge-base as the automatic fallback.
-* Ensure both storage backends use the exact same directory hierarchy and produce identical retrieval behavior.
-* Prefer maintainable, modular, and testable implementations with clear separation of routing, authorization, retrieval, reranking, and response generation.
+No sensitive data (evidence content, control descriptions with sensitive info) should be cached in browser storage beyond session — check whether any Zustand/localStorage persistence accidentally persists sensitive GRC data client-side.
+Every action with compliance consequence (approve, reject, submit) needs a confirmation step — the audit already flagged confirmation modals as partially scaffolded; this isn't UX polish, it's a control against accidental state changes that create false compliance records.

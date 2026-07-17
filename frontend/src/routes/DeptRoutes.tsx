@@ -8,6 +8,7 @@ import Tasks from "../pages/dept/Tasks";
 import TaskWizard from "../pages/dept/TaskWizard";
 import Evidence from "../pages/dept/Evidence";
 import SelfAssessment from "../pages/dept/SelfAssessment";
+import Chat from "../pages/dept/Chat";
 
 export const deptRoutes: RouteObject = {
   path: "/dept",
@@ -21,6 +22,7 @@ export const deptRoutes: RouteObject = {
     { path: "tasks", element: <Tasks /> },
     { path: "tasks/:id", element: <TaskWizard /> },
     { path: "evidence", element: <Evidence /> },
-    { path: "self-assessment", element: <SelfAssessment /> }
+    { path: "self-assessment", element: <SelfAssessment /> },
+    { path: "chat", element: <Chat /> }
   ]
 };

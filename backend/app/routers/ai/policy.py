@@ -81,6 +81,14 @@ async def ai_policy_analyze(
         get_summary()
     )
 
+    # Normalize nested responses to stable keys
+    summary_res = summary_res or {}
+    conflicts_res = conflicts_res or {}
+    summary_res["assessment_summary"] = summary_res.get("assessment_summary") or summary_res.get("response") or ""
+    summary_res["recommendations"] = summary_res.get("recommendations") or ""
+    conflicts_res["assessment_summary"] = conflicts_res.get("assessment_summary") or conflicts_res.get("response") or ""
+    conflicts_res["recommendations"] = conflicts_res.get("recommendations") or ""
+
     return {
         "executive_summary": summary_res,
         "conflicts": conflicts_res

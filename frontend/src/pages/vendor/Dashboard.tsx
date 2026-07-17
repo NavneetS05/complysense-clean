@@ -5,6 +5,10 @@ import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { Building2, AlertTriangle, CheckCircle, Shield, Plus, ChevronRight } from "lucide-react";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type Vendor = {
   vendor_id: string;
@@ -27,22 +31,17 @@ const RISK_COLORS: Record<string, { bg: string; text: string }> = {
 
 export default function VendorDashboard() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/vendors");
-        setVendors(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to load vendors", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/vendors");
+    return Array.isArray(res.data) ? res.data : res.data?.vendors ?? [];
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setVendors(data as Vendor[]);
+  }, [data]);
 
   const filtered = vendors.filter((v) =>
     !search ||
@@ -105,11 +104,11 @@ export default function VendorDashboard() {
       {/* Vendor table */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: 32, textAlign: "center", color: "var(--muted)" }}>Loading vendor register…</div>
+          <Loading />
+        ) : error ? (
+          <ErrorState message={error.message} onRetry={() => void refetch()} />
         ) : filtered.length === 0 ? (
-          <div style={{ padding: 32, textAlign: "center", color: "var(--muted)" }}>
-            No vendors found. <Link to="/vendor/vendors/new" style={{ color: "var(--primary)" }}>Add your first vendor.</Link>
-          </div>
+          <EmptyState title="No vendors" description={<>No vendors found. <Link to="/vendor/vendors/new" style={{ color: "var(--primary)" }}>Add your first vendor.</Link></>} />
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>

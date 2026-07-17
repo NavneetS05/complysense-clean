@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_permission
 from app.database import get_db_session
-from app.domain.rbac import PermissionKey
+from app.domain.rbac import PermissionKey, RoleName
 from app.repositories.audit import AuditLogRepository
+from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/vendors", tags=["vendors"])
@@ -311,6 +312,30 @@ async def upsert_vendor_risk_assessment(
         entity_id=str(row["vendor_risk_id"]),
         action_details={"vendor_id": vendor_id, "fields": list(fields.keys())},
     )
+
+    if not payload.vendor_risk_id:
+        reviewer_rows = await session.execute(
+            text(
+                """
+                select u.user_id
+                from users u
+                join roles r on u.role_id = r.role_id
+                where u.institution_id = :inst_id
+                  and r.role_name = :role_name
+                """
+            ),
+            {"inst_id": user_ctx.institution_id, "role_name": RoleName.VENDOR_REVIEWER.value},
+        )
+        for reviewer in reviewer_rows.mappings().all():
+            await NotificationRepository(session).create(
+                institution_id=str(user_ctx.institution_id),
+                user_id=str(reviewer["user_id"]),
+                title="Vendor risk assessment requires review",
+                message=f"A new vendor risk assessment has been created for vendor {vendor_id}.",
+                notification_type="vendor_risk_flagged",
+                related_entity_type="vendor_risk_assessment",
+                related_entity_id=str(row["vendor_risk_id"]),
+            )
     await session.commit()
     return {
         "vendor_id": vendor_id,

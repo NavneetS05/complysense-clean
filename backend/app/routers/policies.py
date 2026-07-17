@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -412,3 +412,35 @@ async def generate_executive_report(
     except Exception as exc:
         await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/reports/{report_id}/download", summary="Download a generated compliance report")
+async def download_policy_report(
+    report_id: str,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_POLICIES))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    res = await session.execute(
+        text(
+            "select report_id, report_name, report_type, file_path, generated_at "
+            "from audit_reports where report_id = :report_id and institution_id = :inst_id"
+        ),
+        {"report_id": report_id, "inst_id": user_ctx.institution_id},
+    )
+    report = res.mappings().first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report_name = report["report_name"] or "report"
+    generated_at = report["generated_at"]
+    header_name = f"{report_name}.pdf" if report_name.endswith(".pdf") else f"{report_name}.pdf"
+    content = (
+        f"Report Name: {report_name}\n"
+        f"Report Type: {report['report_type']}\n"
+        f"Generated At: {generated_at.isoformat() if generated_at else 'unknown'}\n"
+        "\nThis endpoint provides a download placeholder for compliance reports."
+    )
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=\"{header_name}\""},
+    )

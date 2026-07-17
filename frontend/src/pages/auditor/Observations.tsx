@@ -1,7 +1,11 @@
 // Use: Auditor observation tracking and finding register.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type ObservationItem = {
   observation_id: string;
@@ -17,21 +21,19 @@ type ObservationItem = {
 
 export default function Observations() {
   const [rows, setRows] = useState<ObservationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/audit/observations");
+    return Array.isArray(res.data) ? res.data : res.data?.observations ?? [];
+  }, []);
+  
+  useEffect(() => {
+    if (!data) return;
+    setRows(data as ObservationItem[]);
+  }, [data]);
   const [selected, setSelected] = useState<ObservationItem | null>(null);
   const [filters, setFilters] = useState({ search: "", severity: "All", status: "All" });
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/audit/observations");
-        setRows(Array.isArray(data) ? data : []);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
-  }, []);
+  
 
   const visibleRows = useMemo(() => rows.filter((row) => {
     const matchesSearch = !filters.search || `${row.observation_text} ${row.control_id || ""}`.toLowerCase().includes(filters.search.toLowerCase());
@@ -93,7 +95,7 @@ export default function Observations() {
           <option value="resolved">Resolved</option>
         </select>
       </div>
-      {loading ? <p>Loading observations…</p> : (
+      {loading ? <Loading /> : error ? <ErrorState message={error.message} onRetry={() => void refetch()} /> : (
         <div style={{ display: "grid", gap: 12 }}>
           {visibleRows.map((row) => (
             <div key={row.observation_id} style={{ border: "1px solid #e2e8f0", borderRadius: 12, background: "white", padding: 12 }}>

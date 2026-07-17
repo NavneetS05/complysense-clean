@@ -1,6 +1,7 @@
 # Use: Backend proxy router for Auditor AI features (Smart Sampling & Observation Drafter).
 
 from typing import Annotated, Any
+from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -11,6 +12,16 @@ from app.database import get_db_session
 from app.domain.rbac import PermissionKey
 from app.schemas.auth import UserContext
 from app.routers.ai.proxy import forward_to_ai_service
+
+
+def _normalize_ai_result(result: dict[str, Any] | None) -> dict[str, Any]:
+    if result is None:
+        result = {}
+    result["assessment_summary"] = result.get("assessment_summary") or result.get("summary") or result.get("response") or ""
+    result["recommendations"] = result.get("recommendations") or result.get("recommended_actions") or result.get("citations") or ""
+    result["risk_level"] = result.get("risk_level") or result.get("severity") or None
+    result["dpdp_compliant"] = result.get("dpdp_compliant") if isinstance(result.get("dpdp_compliant"), bool) else None
+    return result
 
 router = APIRouter(prefix="/audit", tags=["AI Audit"])
 
@@ -25,6 +36,28 @@ class DraftObservationProxyRequest(BaseModel):
     evidence_id: str | None = None
     partial_text: str | None = None
     conversation_id: str | None = None
+
+
+class AuditChatProxyRequest(BaseModel):
+    query: str
+    conversation_id: str | None = None
+
+
+@router.post("/chat", summary="Auditor AI Q&A")
+async def ai_audit_chat(
+    payload: AuditChatProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    conversation_id = payload.conversation_id or str(uuid4())
+    result = await forward_to_ai_service(
+        "/audit/chat",
+        {"query": payload.query, "conversation_id": conversation_id},
+        authorization,
+    )
+    result = _normalize_ai_result(result)
+    result["conversation_id"] = conversation_id
+    return result
 
 
 @router.post("/smart-sample", summary="Calculate smart evidence sample prioritization")
@@ -89,7 +122,8 @@ async def ai_smart_sample(
         "conversation_id": payload.conversation_id
     }
 
-    return await forward_to_ai_service("/audit/smart-sample", ai_payload, authorization)
+    res = await forward_to_ai_service("/audit/smart-sample", ai_payload, authorization)
+    return _normalize_ai_result(res)
 
 
 @router.post("/draft-observation", summary="Draft a formal audit observation via AI")
@@ -155,4 +189,5 @@ async def ai_draft_observation(
         "conversation_id": payload.conversation_id
     }
 
-    return await forward_to_ai_service("/audit/draft-observation", ai_payload, authorization)
+    res = await forward_to_ai_service("/audit/draft-observation", ai_payload, authorization)
+    return _normalize_ai_result(res)

@@ -1,8 +1,12 @@
 // Use: Detail view for a single control, assignees, linked evidence, and audit logs.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type ControlDetailData = {
   assignment_id: string;
@@ -25,27 +29,21 @@ type EvidenceItem = {
 
 export default function ControlDetail() {
   const { id } = useParams();
-  const [control, setControl] = useState<ControlDetailData | null>(null);
-  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [noteText, setNoteText] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      if (!id) return;
-      try {
-        const [{ data: detail }, { data: evidenceData }] = await Promise.all([
-          api.get(`/api/v1/controls/${id}`),
-          api.get(`/api/v1/evidence`),
-        ]);
-        setControl(detail);
-        setEvidence((Array.isArray(evidenceData) ? evidenceData : []).filter((item: EvidenceItem) => item.file_name));
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data: control, loading: loadingControl, error: controlError, refetch: refetchControl } = useApi<ControlDetailData | null>(async () => {
+    if (!id) return null as any;
+    const res = await api.get(`/api/v1/controls/${id}`);
+    return res.data as ControlDetailData;
   }, [id]);
+
+  const { data: evidenceData, loading: loadingEvidence, error: evidenceError, refetch: refetchEvidence } = useApi(async () => {
+    const res = await api.get(`/api/v1/evidence`);
+    const arr = Array.isArray(res.data) ? res.data : res.data?.evidence ?? [];
+    return arr.filter((item: EvidenceItem) => item.file_name);
+  }, [id]);
+
+  const evidence: EvidenceItem[] = (evidenceData as EvidenceItem[]) ?? [];
 
   const dueBadge = useMemo(() => {
     if (!control?.due_date) return null;
@@ -60,14 +58,34 @@ export default function ControlDetail() {
     if (!id || !noteText.trim()) return;
     try {
       const { data } = await api.patch(`/api/v1/controls/${id}/notes`, { note: noteText.trim() });
-      setControl((current) => current ? { ...current, notes: data.notes } : current);
+      await refetchControl();
       setNoteText("");
     } catch {
       // swallow for now
     }
   };
 
-  if (loading) return <div className="page-panel"><h2>Control Detail</h2><p>Loading control details…</p></div>;
+  const handleDownload = async (evidenceId: string, filename?: string) => {
+    try {
+      const res = await api.get(`/api/v1/evidence/${evidenceId}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "evidence.bin";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // simple feedback; could be improved
+      // eslint-disable-next-line no-console
+      console.error("Download failed", err);
+      alert("Failed to download file.");
+    }
+  };
+  if (loadingControl || loadingEvidence) return <div className="page-panel"><h2>Control Detail</h2><Loading /></div>;
+
+  if (controlError) return <div className="page-panel"><h2>Control Detail</h2><ErrorState message={controlError.message} onRetry={() => void refetchControl()} /></div>;
 
   return (
     <div className="page-panel">
@@ -97,6 +115,9 @@ export default function ControlDetail() {
                 {evidence.map((item) => (
                   <li key={item.evidence_id} style={{ marginBottom: 6 }}>
                     <strong>{item.file_name}</strong> — {item.approval_status}
+                    <div style={{ marginTop: 6 }}>
+                      <button onClick={() => void handleDownload(item.evidence_id, item.file_name)} style={{ marginRight: 8 }}>Download</button>
+                    </div>
                   </li>
                 ))}
               </ul>

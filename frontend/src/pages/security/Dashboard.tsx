@@ -1,10 +1,14 @@
 // Use: Dashboard highlighting technical control status and recent incidents.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 interface IncidentSummary {
   incident_id: string;
@@ -48,24 +52,22 @@ function formatDeadline(incident: IncidentSummary) {
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [incidents, setIncidents] = useState<IncidentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [{ data: statsData }, { data: incidentsData }] = await Promise.all([
-          api.get<DashboardStats>("/api/v1/incidents/dashboard-stats"),
-          api.get<IncidentSummary[]>("/api/v1/incidents", { params: { limit: 5 } })
-        ]);
-        setStats(statsData);
-        setIncidents(incidentsData);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void load();
+  const { data: statsData, loading: loadingStats, error: statsError, refetch: refetchStats } = useApi(async () => {
+    const res = await api.get<DashboardStats>("/api/v1/incidents/dashboard-stats");
+    return res.data;
   }, []);
+
+  const { data: incidentsData, loading: loadingIncidents, error: incidentsError, refetch: refetchIncidents } = useApi(async () => {
+    const res = await api.get<IncidentSummary[]>("/api/v1/incidents", { params: { limit: 5 } });
+    return Array.isArray(res.data) ? res.data : res.data?.incidents ?? [];
+  }, []);
+
+  useState(() => {
+    if (statsData) setStats(statsData as DashboardStats);
+    if (incidentsData) setIncidents(incidentsData as IncidentSummary[]);
+    return undefined;
+  });
 
   const criticalAlert = useMemo(() => {
     if (!stats) return false;
@@ -81,8 +83,10 @@ export default function Dashboard() {
         </div>
       ) : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
-        {loading ? (
-          Array.from({ length: 5 }).map((_, idx) => <div key={idx} style={{ padding: 16, borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff" }}>Loading…</div>)
+        {loadingStats || loadingIncidents ? (
+          Array.from({ length: 5 }).map((_, idx) => <div key={idx} style={{ padding: 16, borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff" }}><Loading /></div>)
+        ) : statsError || incidentsError ? (
+          <div style={{ gridColumn: "1 / -1" }}><ErrorState message={(statsError || incidentsError)?.message} onRetry={() => { void refetchStats(); void refetchIncidents(); }} /></div>
         ) : (
           <>
             <div style={{ padding: 16, borderRadius: 12, border: "1px solid #e5e7eb", background: "#fff" }}>

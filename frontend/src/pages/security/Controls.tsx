@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 interface ControlItem {
   assignment_id: string;
@@ -15,9 +19,15 @@ interface ControlItem {
 
 export default function Controls() {
   const [controls, setControls] = useState<ControlItem[]>([]);
-  useEffect(() => {
-    void api.get<ControlItem[]>("/api/v1/controls").then(({ data }) => setControls(data));
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get<ControlItem[]>("/api/v1/controls");
+    return Array.isArray(res.data) ? res.data : res.data?.controls ?? [];
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setControls(data as ControlItem[]);
+  }, [data]);
 
   return (
     <div className="page-panel">
@@ -34,7 +44,13 @@ export default function Controls() {
             </tr>
           </thead>
           <tbody>
-            {controls.map((item) => (
+            {loading ? (
+              <tr><td colSpan={5} style={{ padding: 16 }}><Loading /></td></tr>
+            ) : error ? (
+              <tr><td colSpan={5} style={{ padding: 16 }}><ErrorState message={error.message} onRetry={() => void refetch()} /></td></tr>
+            ) : controls.length === 0 ? (
+              <tr><td colSpan={5} style={{ padding: 16 }}><EmptyState title="No controls" description="No control assignments found." /></td></tr>
+            ) : controls.map((item) => (
               <tr key={item.assignment_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: 10 }}>{item.control_id}</td>
                 <td style={{ padding: 10 }}>{item.framework_name}</td>

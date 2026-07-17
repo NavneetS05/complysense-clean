@@ -1,8 +1,11 @@
 // Use: List of active and historical compliance assessments.
 
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import { useApi } from "../../hooks/useApi";
+import Loading from "../../components/shared/Loading";
+import ErrorState from "../../components/shared/ErrorState";
+import EmptyState from "../../components/shared/EmptyState";
 
 type AssessmentItem = {
   assessment_id: string;
@@ -13,26 +16,24 @@ type AssessmentItem = {
 };
 
 export default function Assessments() {
-  const [assessments, setAssessments] = useState<AssessmentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const { data } = await api.get("/api/v1/assessments");
-        setAssessments(Array.isArray(data) ? data : []);
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
+  const { data, loading, error, refetch } = useApi(async () => {
+    const res = await api.get("/api/v1/assessments");
+    return Array.isArray(res.data) ? res.data : res.data?.assessments ?? [];
   }, []);
+
+  const assessments: AssessmentItem[] = data ?? [];
 
   return (
     <div className="page-panel">
       <h2>Assessments</h2>
       <p>Operational assessment runs and their current status.</p>
-      {loading ? <p>Loading assessments…</p> : (
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorState message={error.message} onRetry={() => void refetch()} />
+      ) : assessments.length === 0 ? (
+        <EmptyState title="No assessments" description="No assessment runs found for your institution." actionLabel="Refresh" onAction={() => void refetch()} />
+      ) : (
         <div className="card" style={{ padding: 16, marginTop: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>

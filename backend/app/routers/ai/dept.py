@@ -2,6 +2,7 @@
 
 import time
 from typing import Annotated, Any, Dict, Tuple
+from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -45,6 +46,27 @@ class PreflightCheckProxyRequest(BaseModel):
     mime_type: str
     file_content_preview: str
     conversation_id: str | None = None
+
+
+class DeptChatProxyRequest(BaseModel):
+    query: str
+    conversation_id: str | None = None
+
+
+@router.post("/chat", summary="Department reviewer AI Q&A")
+async def ai_dept_chat(
+    payload: DeptChatProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    conversation_id = payload.conversation_id or str(uuid4())
+    result = await forward_to_ai_service(
+        "/dept/chat",
+        {"query": payload.query, "conversation_id": conversation_id},
+        authorization,
+    )
+    result["conversation_id"] = conversation_id
+    return result
 
 
 @router.get("/translate/{control_id}", summary="Translate control requirement into plain English")

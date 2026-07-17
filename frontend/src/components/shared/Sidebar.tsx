@@ -50,27 +50,32 @@ const NAV_MAP: Record<RoleName, NavItemDef[]> = {
     { to: "/compliance/policies",       label: "Policies",      icon: FileText },
     { to: "/compliance/tasks",          label: "Tasks",         icon: CheckSquare },
     { to: "/compliance/notifications",  label: "Notifications", icon: Bell,          badge: "unread" },
+    { to: "/compliance/chat",           label: "Ask AI",        icon: Bot },
   ],
   "IT Security Officer": [
     { to: "/security/dashboard",  label: "Dashboard", icon: ShieldAlert },
     { to: "/security/incidents",  label: "Incidents", icon: Siren,   badge: "pending" },
     { to: "/security/controls",   label: "Controls",  icon: Settings2 },
     { to: "/security/evidence",   label: "Evidence",  icon: Upload },
+    { to: "/security/chat",       label: "Ask AI",    icon: Bot },
   ],
   "Auditor": [
     { to: "/auditor/workspace",    label: "Workspace",    icon: Microscope },
     { to: "/auditor/observations", label: "Observations", icon: MessageSquare },
     { to: "/auditor/reports",      label: "Reports",      icon: FileText },
+    { to: "/auditor/chat",         label: "Ask AI",       icon: Bot },
   ],
   "Department Reviewer": [
     { to: "/dept/dashboard",       label: "Dashboard",      icon: LayoutDashboard },
     { to: "/dept/tasks",           label: "My Tasks",       icon: CheckSquare, badge: "pending" },
     { to: "/dept/evidence",        label: "Evidence Vault", icon: Archive },
     { to: "/dept/self-assessment", label: "Self Assessment",icon: ClipboardCheck },
+    { to: "/dept/chat",            label: "Ask AI",         icon: Bot },
   ],
   "Vendor Reviewer": [
     { to: "/vendor/dashboard", label: "Vendor Register", icon: Store },
     { to: "/vendor/expiry",    label: "Expiry Tracker",  icon: CalendarX },
+    { to: "/vendor/chat",      label: "Ask AI",          icon: Bot },
   ],
   "Policy Approver": [
     { to: "/policy/inbox",   label: "Inbox",          icon: Inbox, badge: "pending" },
