@@ -1,12 +1,18 @@
 # Use: Health check router confirming database and service availability.
 
+import asyncio
+from typing import Any
 from fastapi import APIRouter
 
 from app.database import check_postgres
 from app.mongodb import check_mongodb
-from app.supabase_client import check_supabase
+from app.supabase_client import check_supabase_sync
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+
+async def check_supabase() -> dict[str, Any]:
+    return await asyncio.to_thread(check_supabase_sync)
 
 
 async def safe_check(name: str, check: object) -> dict[str, object]:

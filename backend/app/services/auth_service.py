@@ -116,9 +116,9 @@ class AuthService:
             institution_id=str(new_user["institution_id"]),
             institution_name=str(new_user["institution_name"]) if new_user.get("institution_name") else None,
             role_id=str(new_user["role_id"]),
-            role_name="",  # no join on creation — refreshed on next login
+            role_name=str(new_user["role_name"]),
             active_role_id=str(new_user["role_id"]),
-            active_role_name="",
+            active_role_name=str(new_user["role_name"]),
             email=str(new_user["email"]),
             full_name=str(new_user["full_name"]) if new_user.get("full_name") else None,
             phone=str(new_user["phone"]) if new_user.get("phone") else None,

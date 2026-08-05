@@ -88,9 +88,12 @@ const NAV_MAP: Record<RoleName, NavItemDef[]> = {
   ],
 };
 
-// ─── Sidebar Component ────────────────────────────────────────────────────────
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
 
-export function Sidebar() {
+export function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const { user, clearSession } = useAuthStore();
   const { unreadCount } = useNotificationStore();
   const navigate = useNavigate();
@@ -115,7 +118,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
       {/* Brand */}
       <div className="sidebar-brand">
         <div className="sidebar-brand-row">
@@ -142,6 +145,7 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={() => onCloseMobile?.()}
               className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
               end={item.to.endsWith("dashboard")}
             >

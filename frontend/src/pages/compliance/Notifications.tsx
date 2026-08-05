@@ -145,7 +145,7 @@ export default function Notifications() {
                   <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 13, marginTop: 3 }}>
                     {item.message || "No additional details provided."}
                   </span>
-                  <span className="badge badge-info" style={{ marginTop: 8 }}>{item.type.replaceAll("_", " ")}</span>
+                  <span className="badge badge-info" style={{ marginTop: 8 }}>{item.type.replace(/_/g, " ")}</span>
                 </span>
                 <span style={{ color: "var(--text-muted)", fontSize: 12, whiteSpace: "nowrap" }}>
                   {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}

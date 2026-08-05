@@ -37,11 +37,24 @@ class IncidentUpdatePayload(BaseModel):
     cert_in_reported: bool | None = None
 
 
+class ChecklistItem(BaseModel):
+    id: str
+    text: str
+    is_done: bool = False
+    completed_by: str | None = None
+    completed_at: str | None = None
+
+
+class IncidentChecklistUpdatePayload(BaseModel):
+    checklist_items: list[ChecklistItem]
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid datetime value") from exc
 
@@ -254,7 +267,7 @@ async def get_incident_detail(
                 occurred_at, detected_at, cert_in_deadline, cert_in_reported,
                 cert_in_reported_at, dpdp_notification_required, affected_systems,
                 affected_data_categories, reported_by, assigned_to, resolved_at,
-                resolution_notes, created_at, updated_at
+                resolution_notes, checklist_items, created_at, updated_at
             from incidents
             where incident_id = :incident_id and institution_id = :inst_id
             """
@@ -297,6 +310,7 @@ async def get_incident_detail(
         "assigned_to": str(row["assigned_to"]) if row["assigned_to"] else None,
         "resolved_at": _serialize_datetime(row["resolved_at"]),
         "resolution_notes": row["resolution_notes"],
+        "checklist_items": row["checklist_items"] if row["checklist_items"] is not None else [],
         "created_at": _serialize_datetime(row["created_at"]),
         "updated_at": _serialize_datetime(row["updated_at"]),
         "timeline": [
@@ -351,4 +365,65 @@ async def update_incident(
         "status": row["status"],
         "cert_in_reported": bool(row["cert_in_reported"]),
         "resolution_notes": row["resolution_notes"],
+    }
+
+
+@router.patch("/{incident_id}/checklist", summary="Update incident response checklist items")
+async def update_incident_checklist(
+    incident_id: str,
+    payload: IncidentChecklistUpdatePayload,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INCIDENTS))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    """Replace the full checklist_items JSONB array on an incident.
+
+    Each item has: id (caller-assigned string), text, is_done, completed_by, completed_at.
+    The entire list is replaced atomically — callers must send the full array.
+    incident_timeline is NOT affected; it remains a separate append-only action log.
+    """
+    import json
+
+    raw_items = [item.model_dump() for item in payload.checklist_items]
+
+    res = await session.execute(
+        text(
+            """
+            update incidents
+               set checklist_items = :checklist_items::jsonb,
+                   updated_at = now()
+             where incident_id = :incident_id
+               and institution_id = :inst_id
+            returning incident_id, checklist_items
+            """
+        ),
+        {
+            "checklist_items": json.dumps(raw_items),
+            "incident_id": incident_id,
+            "inst_id": user_ctx.institution_id,
+        },
+    )
+    row = res.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    from app.repositories.audit import AuditLogRepository
+
+    done_count = sum(1 for item in raw_items if item.get("is_done"))
+    await AuditLogRepository(session).write(
+        institution_id=user_ctx.institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="incident_checklist_updated",
+        entity_type="incident",
+        entity_id=incident_id,
+        action_details={
+            "total_items": len(raw_items),
+            "done_items": done_count,
+        },
+    )
+    await session.commit()
+
+    return {
+        "incident_id": str(row["incident_id"]),
+        "checklist_items": row["checklist_items"] if row["checklist_items"] is not None else [],
     }

@@ -156,15 +156,17 @@ export default function Gaps() {
         subtitle="Open and in-progress remediation items across the institution." 
       />
 
-      <section className="card" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 12, padding: 12 }}>
-        <input 
-          className="form-input" 
-          placeholder="Search by title or control ID..." 
-          value={filters.search} 
-          onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} 
-        />
+      <div className="filter-toolbar">
+        <div className="filter-search-wrapper">
+          <input 
+            className="filter-search-input" 
+            placeholder="Search by gap title or control ID..." 
+            value={filters.search} 
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} 
+          />
+        </div>
         <select 
-          className="form-input" 
+          className="filter-select" 
           value={filters.severity} 
           onChange={(e) => setFilters((f) => ({ ...f, severity: e.target.value }))}
         >
@@ -175,7 +177,7 @@ export default function Gaps() {
           <option value="low">Low</option>
         </select>
         <select 
-          className="form-input" 
+          className="filter-select" 
           value={filters.framework} 
           onChange={(e) => setFilters((f) => ({ ...f, framework: e.target.value }))}
         >
@@ -185,7 +187,7 @@ export default function Gaps() {
           ))}
         </select>
         <select 
-          className="form-input" 
+          className="filter-select" 
           value={filters.status} 
           onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
         >
@@ -194,7 +196,7 @@ export default function Gaps() {
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
-      </section>
+      </div>
 
       <DataTable 
         columns={columns} 

@@ -113,20 +113,25 @@ class UserRepository:
         phone: str | None = None,
         designation: str | None = None,
     ) -> dict[str, Any]:
-        """Insert a new user and return the full row."""
+        """Insert a new user and return the full row joined with role_name."""
         result = await self.session.execute(
             text(
                 """
-                insert into users (
-                    institution_id, role_id, full_name, email, password_hash,
-                    phone, designation
+                with new_user as (
+                    insert into users (
+                        institution_id, role_id, full_name, email, password_hash,
+                        phone, designation
+                    )
+                    values (
+                        :institution_id, :role_id, :full_name, :email, :password_hash,
+                        :phone, :designation
+                    )
+                    returning user_id, institution_id, role_id, full_name, email,
+                              phone, designation, is_active, created_at
                 )
-                values (
-                    :institution_id, :role_id, :full_name, :email, :password_hash,
-                    :phone, :designation
-                )
-                returning user_id, institution_id, role_id, full_name, email,
-                          phone, designation, is_active, created_at
+                select nu.*, r.role_name
+                  from new_user nu
+                  join roles r on r.role_id = nu.role_id
                 """
             ),
             {
@@ -234,6 +239,8 @@ class UserRepository:
 
     async def block_user(self, user_id: str, *, blocked_until: datetime) -> None:
         """Set blocked_until to block the user until the specified datetime."""
+        if blocked_until and blocked_until.tzinfo is not None:
+            blocked_until = blocked_until.replace(tzinfo=None)
         await self.session.execute(
             text(
                 """
@@ -269,6 +276,8 @@ class UserRepository:
         self, user_id: str, token: str, expires_at: datetime
     ) -> str:
         """Insert a password-reset token and return the token_id."""
+        if expires_at and expires_at.tzinfo is not None:
+            expires_at = expires_at.replace(tzinfo=None)
         result = await self.session.execute(
             text(
                 """

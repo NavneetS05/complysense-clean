@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import logger
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
@@ -111,8 +112,7 @@ async def ai_analyze_contract(
         })
     except Exception as exc:
         # Log error, but proceed as non-fatal to ensure contract analysis functions
-        import logging
-        logging.getLogger("app.routers.ai.vendor").warning(f"MongoDB write failed: {exc}")
+        logger.warning("mongodb.vendor_contract_write_failed", vendor_id=payload.vendor_id, error=str(exc))
 
     # Build vendor contextual prompt suffix
     vendor_context = (

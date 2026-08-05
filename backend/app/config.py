@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     ai_service_url: str = "http://localhost:8001"
     openai_api_key: str | None = None
 
+    # Optional: must match ADMIN_REINDEX_KEY env var on the AI service.
+    # Leave blank to leave reindex endpoint disabled on the AI side.
+    ai_admin_reindex_key: str | None = None
+
     frontend_url: str = "http://localhost:5173"
 
     @field_validator("cors_origins", mode="before")

@@ -1,4 +1,5 @@
 # Use: Utility functions for password hashing (bcrypt), verification, and JWT encoding/decoding.
+# Note: bcrypt has a hard 72-byte limit. Passwords are explicitly truncated before hashing/verifying.
 
 from __future__ import annotations
 
@@ -20,12 +21,17 @@ password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ---------------------------------------------------------------------------
 
 
+def _truncate_password(plain_password: str) -> bytes:
+    """bcrypt enforces a hard 72-byte limit. Pre-truncate so behaviour is explicit."""
+    return plain_password.encode("utf-8")[:72]
+
+
 def hash_password(plain_password: str) -> str:
-    return password_context.hash(plain_password)
+    return password_context.hash(_truncate_password(plain_password))
 
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
-    return password_context.verify(plain_password, password_hash)
+    return password_context.verify(_truncate_password(plain_password), password_hash)
 
 
 # ---------------------------------------------------------------------------

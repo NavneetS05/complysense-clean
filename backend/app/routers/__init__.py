@@ -21,6 +21,7 @@ from app.routers import (
     notifications,
     policies,
     rbac,
+    super_admin,
     tasks,
     users,
     vendors,
@@ -49,6 +50,7 @@ def build_api_router() -> APIRouter:
     api_router.include_router(audit.router)
     api_router.include_router(notifications.router)
     api_router.include_router(calendar.router)
+    api_router.include_router(super_admin.router)
 
     from app.routers.ai import build_ai_router
     api_router.include_router(build_ai_router(), prefix="/ai")

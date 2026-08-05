@@ -51,9 +51,11 @@ export default function Login() {
     try {
       const data = await login(email, password);
       setSession(data.access_token, data.user);
-      persistSession(data.user);
+      const targetDashboard = roleDashboard(data.user.role_name);
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-      navigate(from ?? roleDashboard(data.user.role_name), { replace: true });
+      const targetSection = targetDashboard.split("/")[1];
+      const isFromAllowed = from && from !== "/login" && targetSection && from.startsWith(`/${targetSection}`);
+      navigate(isFromAllowed ? from : targetDashboard, { replace: true });
     } catch (err: unknown) {
       const status = (err as { response?: { status: number; data?: { blocked_until?: string } } })
         ?.response?.status;

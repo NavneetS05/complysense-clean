@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.logging import logger
+
 
 @dataclass(frozen=True)
 class DomainEvent:
@@ -29,7 +31,16 @@ class EventBus:
 
     async def publish(self, event: DomainEvent) -> None:
         for handler in self._handlers[event.event_type]:
-            await handler(event)
+            try:
+                await handler(event)
+            except Exception as exc:
+                logger.error(
+                    "event_bus.handler_failed",
+                    event_type=event.event_type,
+                    event_id=event.event_id,
+                    handler=getattr(handler, "__name__", str(handler)),
+                    error=str(exc),
+                )
 
 
 event_bus = EventBus()

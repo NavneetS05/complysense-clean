@@ -56,71 +56,151 @@ print(f"[seed] Password hash generated for '{_PWD}'")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PERMISSION_DEFS = [
-    # view
-    ("view_controls",       "View control assignments and status"),
-    ("view_evidence",       "View uploaded evidence documents"),
-    ("view_gaps",           "View compliance gaps"),
-    ("view_incidents",      "View security incidents"),
-    ("view_vendors",        "View vendor register"),
-    ("view_policies",       "View policy documents"),
-    ("view_audit_logs",     "View audit trail logs"),
-    ("view_reports",        "View audit and compliance reports"),
-    ("view_users",          "View institution users"),
-    ("view_departments",    "View department list"),
-    # manage
-    ("manage_users",        "Create, edit, and deactivate users"),
-    ("manage_departments",  "Create and manage departments"),
-    ("manage_institutions", "Create and manage institution tenants"),
-    # upload / submit
-    ("upload_evidence",     "Upload evidence documents"),
-    ("submit_assessment",   "Submit assessment responses"),
-    # approve / reject
-    ("approve_evidence",    "Approve or reject uploaded evidence"),
-    ("approve_policy",      "Approve or reject policy drafts"),
-    # create / assign
-    ("create_controls",     "Create and assign control tasks"),
-    ("create_tasks",        "Create mitigation tasks"),
-    ("manage_incidents",    "Create and manage security incidents"),
-    ("manage_vendors",      "Create and manage vendor records"),
-    # generate
-    ("generate_reports",    "Generate compliance and audit reports"),
+    # Roles & Institutions
+    ("view_roles",              "View platform roles"),
+    ("manage_institutions",     "Create and manage institution tenants"),
+    # Audit
+    ("view_audit_trail",        "View audit trail logs"),
+    # Users
+    ("manage_users",            "Create, edit, and deactivate users"),
+    # Departments
+    ("manage_departments",      "Create and manage departments"),
+    # Calendar
+    ("view_calendar",           "View compliance calendar events"),
+    ("manage_calendar",         "Create and manage compliance calendar events"),
+    # Controls
+    ("view_controls",           "View control assignments and status"),
+    ("manage_controls",         "Manage control assignments"),
+    # Assessments
+    ("view_assessments",        "View assessments"),
+    ("manage_assessments",      "Create and manage assessments"),
+    # Gaps
+    ("view_gaps",               "View compliance gaps"),
+    ("manage_gaps",             "Manage compliance gaps"),
+    # Tasks
+    ("view_tasks",              "View mitigation tasks"),
+    ("manage_tasks",            "Create and manage mitigation tasks"),
+    # Evidence
+    ("upload_evidence",         "Upload evidence documents"),
+    ("review_evidence",         "Review and approve/reject evidence"),
+    ("view_evidence",           "View uploaded evidence documents"),
+    # Incidents
+    ("manage_incidents",        "Create and manage security incidents"),
+    ("view_incidents",          "View security incidents"),
+    # Vendors
+    ("manage_vendors",          "Create and manage vendor records"),
+    ("view_vendors",            "View vendor register"),
+    # Policies
+    ("draft_policies",          "Draft and edit compliance policies"),
+    ("approve_policies",        "Approve or reject policy drafts"),
+    ("view_policies",           "View policy documents"),
+    # Audit observations & reports
+    ("add_audit_observations",  "Add audit observations"),
+    ("generate_audit_reports",  "Generate compliance and audit reports"),
+    ("view_audit_reports",      "View audit and compliance reports"),
+    # Notifications
+    ("view_notifications",      "View system notifications"),
+    # Assessor AI chat
+    ("use_assessor_chat",       "Use the AI assessor chat"),
+    # Role assumption
+    ("use_role_assumption",     "Temporarily assume another role"),
 ]
 
 ROLE_PERMISSION_MAP = {
-    "Super Admin": [p[0] for p in PERMISSION_DEFS],  # all 22
+    "Super Admin": [p[0] for p in PERMISSION_DEFS],  # all permissions
     "Institution Admin": [
-        "view_controls", "view_evidence", "view_gaps", "view_incidents",
-        "view_vendors", "view_policies", "view_audit_logs", "view_reports",
-        "view_users", "view_departments",
-        "manage_users", "manage_departments", "generate_reports",
+        "view_roles", "manage_institutions",
+        "view_audit_trail",
+        "manage_users",
+        "manage_departments",
+        "view_calendar", "manage_calendar",
+        "view_controls",
+        "view_assessments",
+        "view_gaps",
+        "view_tasks",
+        "view_evidence",
+        "view_incidents",
+        "view_vendors",
+        "view_policies",
+        "view_audit_reports", "generate_audit_reports",
+        "view_notifications",
+        "use_role_assumption",
     ],
     "Compliance Officer": [
-        "view_controls", "view_evidence", "view_gaps", "view_incidents",
-        "view_vendors", "view_policies", "view_audit_logs", "view_reports",
-        "view_users", "view_departments",
-        "approve_evidence", "create_controls", "create_tasks",
-        "submit_assessment", "generate_reports",
+        "view_audit_trail",
+        "view_calendar", "manage_calendar",
+        "view_controls", "manage_controls",
+        "view_assessments", "manage_assessments",
+        "view_gaps", "manage_gaps",
+        "view_tasks", "manage_tasks",
+        "upload_evidence", "review_evidence", "view_evidence",
+        "view_incidents",
+        "view_vendors",
+        "draft_policies", "view_policies",
+        "add_audit_observations", "generate_audit_reports", "view_audit_reports",
+        "view_notifications",
+        "use_assessor_chat",
+        "use_role_assumption",
     ],
     "IT Security Officer": [
-        "view_controls", "view_evidence", "view_incidents",
-        "upload_evidence", "manage_incidents",
+        "view_calendar",
+        "view_controls", "manage_controls",
+        "view_assessments",
+        "view_gaps",
+        "view_tasks", "manage_tasks",
+        "upload_evidence", "view_evidence",
+        "manage_incidents", "view_incidents",
+        "view_vendors",
+        "view_policies",
+        "view_audit_reports",
+        "view_notifications",
     ],
     "Auditor": [
-        "view_controls", "view_evidence", "view_gaps",
-        "view_reports", "view_audit_logs",
+        "view_audit_trail",
+        "view_calendar",
+        "view_controls",
+        "view_assessments",
+        "view_gaps",
+        "view_tasks",
+        "view_evidence",
+        "view_incidents",
+        "view_vendors",
+        "view_policies",
+        "add_audit_observations", "generate_audit_reports", "view_audit_reports",
+        "view_notifications",
     ],
     "Department Reviewer": [
-        "view_controls", "view_evidence",
-        "upload_evidence", "submit_assessment",
+        "view_calendar",
+        "view_controls",
+        "view_assessments", "manage_assessments",
+        "view_gaps",
+        "view_tasks", "manage_tasks",
+        "upload_evidence", "view_evidence",
+        "view_notifications",
     ],
     "Vendor Reviewer": [
-        "view_vendors", "manage_vendors", "view_policies",
+        "view_calendar",
+        "manage_vendors", "view_vendors",
+        "view_policies",
+        "view_notifications",
     ],
     "Policy Approver": [
-        "view_policies", "approve_policy", "view_audit_logs",
+        "view_audit_trail",
+        "view_calendar",
+        "approve_policies", "view_policies",
+        "view_audit_reports",
+        "view_notifications",
     ],
     "Read-Only Assessor": [
-        "view_controls", "view_gaps", "view_reports", "view_incidents",
+        "view_calendar",
+        "view_controls",
+        "view_assessments",
+        "view_gaps",
+        "view_incidents",
+        "view_policies",
+        "view_audit_reports",
+        "view_notifications",
+        "use_assessor_chat",
     ],
 }
 

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import logger
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey
@@ -66,7 +67,8 @@ async def _fetch_mongo_def(store: ControlLibraryStore, control_id: str) -> dict[
     try:
         doc = await store.find_by_control_id(control_id)
         return doc or {}
-    except Exception:
+    except Exception as exc:
+        logger.warning("mongodb.control_lookup_failed", control_id=control_id, error=str(exc))
         return {}
 
 

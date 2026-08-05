@@ -440,6 +440,7 @@ CREATE TABLE incidents (
     assigned_to             UUID REFERENCES users(user_id),
     resolved_at             TIMESTAMP,
     resolution_notes        TEXT,
+    checklist_items         JSONB DEFAULT '[]'::jsonb,
     created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
