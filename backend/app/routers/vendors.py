@@ -236,12 +236,17 @@ async def update_vendor(
 
 
 @router.put("/{vendor_id}/risk-assessments", summary="Create or update a vendor risk assessment")
+@router.post("/{vendor_id}/risk-assessments", summary="Create or update a vendor risk assessment")
 async def upsert_vendor_risk_assessment(
     vendor_id: str,
     payload: VendorRiskAssessmentUpsert,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_VENDORS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
+    """Create a new assessment, or update when vendor_risk_id is supplied.
+
+    POST is intentionally an alias for the existing PUT upsert behavior.
+    """
     vendor_res = await session.execute(
         text("select vendor_id from vendors where vendor_id = :vendor_id and institution_id = :inst_id"),
         {"vendor_id": vendor_id, "inst_id": user_ctx.institution_id},

@@ -52,7 +52,7 @@ export default function TaskWizard() {
         <div><strong>Priority:</strong> {task.priority || "medium"}</div>
         <div><strong>Due:</strong> {task.due_date ? new Date(task.due_date).toLocaleDateString() : "—"}</div>
         <div style={{ border: "1px dashed #cbd5e1", borderRadius: 10, padding: 12, background: "#f8fafc" }}>
-          <strong>Suggested completion checklist</strong>
+          <strong>General submission checklist</strong>
           <ul style={{ margin: "8px 0 0 20px" }}>
             <li>Confirm the control evidence is attached and current.</li>
             <li>Capture the remediation note or rationale for reviewers.</li>

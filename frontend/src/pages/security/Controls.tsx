@@ -1,12 +1,12 @@
 // Use: Lists technical security controls assigned to the IT security officer.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { useApi } from "../../hooks/useApi";
-import Loading from "../../components/shared/Loading";
+import { DataTable, Column } from "../../components/shared/DataTable";
+import { getFrameworkColor } from "../../lib/frameworkColors";
 import ErrorState from "../../components/shared/ErrorState";
-import EmptyState from "../../components/shared/EmptyState";
 
 interface ControlItem {
   assignment_id: string;
@@ -15,13 +15,19 @@ interface ControlItem {
   status: string;
   due_date?: string | null;
   assigned_name?: string | null;
+  [key: string]: unknown;
 }
 
 export default function Controls() {
   const [controls, setControls] = useState<ControlItem[]>([]);
+
+  // Filter states
+  const [filters, setFilters] = useState({ search: "", framework: "", status: "" });
+
   const { data, loading, error, refetch } = useApi(async () => {
-    const res = await api.get<ControlItem[]>("/api/v1/controls");
-    return Array.isArray(res.data) ? res.data : res.data?.controls ?? [];
+    const res = await api.get("/api/v1/controls");
+    const payload = res.data as ControlItem[] | { controls?: ControlItem[] };
+    return Array.isArray(payload) ? payload : payload.controls ?? [];
   }, []);
 
   useEffect(() => {
@@ -29,39 +35,156 @@ export default function Controls() {
     setControls(data as ControlItem[]);
   }, [data]);
 
-  return (
-    <div className="page-panel">
-      <PageShell title="IT Control Assignments" context="Technical control assignments and due dates." />
-      <div style={{ overflowX: "auto", marginTop: 16 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
-              <th style={{ padding: 10 }}>Control</th>
-              <th style={{ padding: 10 }}>Framework</th>
-              <th style={{ padding: 10 }}>Status</th>
-              <th style={{ padding: 10 }}>Due</th>
-              <th style={{ padding: 10 }}>Owner</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} style={{ padding: 16 }}><Loading /></td></tr>
-            ) : error ? (
-              <tr><td colSpan={5} style={{ padding: 16 }}><ErrorState message={error.message} onRetry={() => void refetch()} /></td></tr>
-            ) : controls.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: 16 }}><EmptyState title="No controls" description="No control assignments found." /></td></tr>
-            ) : controls.map((item) => (
-              <tr key={item.assignment_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                <td style={{ padding: 10 }}>{item.control_id}</td>
-                <td style={{ padding: 10 }}>{item.framework_name}</td>
-                <td style={{ padding: 10 }}>{item.status}</td>
-                <td style={{ padding: 10 }}>{item.due_date ? new Date(item.due_date).toLocaleDateString() : "—"}</td>
-                <td style={{ padding: 10 }}>{item.assigned_name ?? "Unassigned"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  // Unique frameworks and statuses for filters
+  const frameworks = useMemo(() => {
+    return Array.from(new Set(controls.map((c) => c.framework_name).filter(Boolean)));
+  }, [controls]);
+
+  const statuses = useMemo(() => {
+    return Array.from(new Set(controls.map((c) => c.status).filter(Boolean)));
+  }, [controls]);
+
+  // Client-side filtering
+  const filteredControls = useMemo(() => {
+    return controls.filter((ctrl) => {
+      const cid = (ctrl.control_id || "").toLowerCase();
+      const name = (ctrl.assigned_name || "").toLowerCase();
+      const matchesSearch =
+        !filters.search ||
+        cid.includes(filters.search.toLowerCase()) ||
+        name.includes(filters.search.toLowerCase());
+      const matchesFramework = !filters.framework || ctrl.framework_name === filters.framework;
+      const matchesStatus = !filters.status || ctrl.status === filters.status;
+      return matchesSearch && matchesFramework && matchesStatus;
+    });
+  }, [controls, filters]);
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "compliant":
+      case "implemented":
+        return "badge-compliant";
+      case "non_compliant":
+      case "not_implemented":
+        return "badge-non_compliant";
+      case "in_progress":
+        return "badge-in_progress";
+      default:
+        return "badge-info";
+    }
+  };
+
+  const columns: Column<ControlItem>[] = [
+    {
+      key: "control_id",
+      label: "Control",
+      sortable: true,
+      render: (val) => <span className="font-mono" style={{ fontWeight: 600 }}>{String(val || "—")}</span>
+    },
+    {
+      key: "framework_name",
+      label: "Framework",
+      sortable: true,
+      render: (val) => {
+        const name = String(val || "General");
+        const colors = getFrameworkColor(name);
+        return (
+          <span 
+            className="badge" 
+            style={{ 
+              backgroundColor: colors.bg, 
+              color: colors.text, 
+              border: `1px solid ${colors.border}` 
+            }}
+          >
+            {name}
+          </span>
+        );
+      }
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (val) => {
+        const status = String(val || "unknown");
+        return (
+          <span className={`badge ${getStatusBadgeClass(status)}`}>
+            {status.replace("_", " ")}
+          </span>
+        );
+      }
+    },
+    {
+      key: "due_date",
+      label: "Due Date",
+      sortable: true,
+      render: (val) => (val ? new Date(String(val)).toLocaleDateString() : "—")
+    },
+    {
+      key: "assigned_name",
+      label: "Owner",
+      sortable: true,
+      render: (val) => String(val || "Unassigned")
+    }
+  ];
+
+  if (error) {
+    return (
+      <div className="page-panel">
+        <PageShell title="IT Control Assignments" subtitle="Technical control assignments and due dates." />
+        <div style={{ marginTop: 16 }}>
+          <ErrorState message={error.message} onRetry={() => void refetch()} />
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <PageShell 
+        title="IT Control Assignments" 
+        subtitle="Technical control assignments and due dates." 
+      />
+
+      <section className="card" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12, padding: 12 }}>
+        <input 
+          className="form-input" 
+          placeholder="Search by Control ID or Owner..." 
+          value={filters.search} 
+          onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} 
+        />
+        <select 
+          className="form-input" 
+          value={filters.framework} 
+          onChange={(e) => setFilters((f) => ({ ...f, framework: e.target.value }))}
+        >
+          <option value="">All Frameworks</option>
+          {frameworks.map((fw) => (
+            <option key={fw} value={fw}>{fw}</option>
+          ))}
+        </select>
+        <select 
+          className="form-input" 
+          value={filters.status} 
+          onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+        >
+          <option value="">All Statuses</option>
+          {statuses.map((status) => (
+            <option key={status} value={status}>{status.replace("_", " ")}</option>
+          ))}
+        </select>
+      </section>
+
+      <DataTable 
+        columns={columns} 
+        data={filteredControls} 
+        loading={loading}
+        emptyTitle="No controls found"
+        emptyDesc="No IT control assignments match the active filter criteria."
+        keyField="assignment_id"
+        pageSize={10}
+      />
     </div>
   );
 }

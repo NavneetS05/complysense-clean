@@ -1,6 +1,5 @@
 // Use: View screen for compiled PDF audit reports.
 
-import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";

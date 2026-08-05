@@ -48,6 +48,7 @@ class UserStatusToggle(BaseModel):
 async def list_institution_users(
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_USERS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    institution_id: str | None = Query(None),
     role: str | None = Query(None),
     status: str | None = Query(None),
     search: str | None = Query(None),
@@ -64,7 +65,12 @@ async def list_institution_users(
           left join departments d on d.reviewer_user_id = u.user_id
          where u.institution_id = :inst_id
     """
-    params: dict[str, Any] = {"inst_id": user_ctx.institution_id}
+    scoped_institution_id = (
+        institution_id
+        if institution_id and user_ctx.active_role_name == RoleName.SUPER_ADMIN.value
+        else user_ctx.institution_id
+    )
+    params: dict[str, Any] = {"inst_id": scoped_institution_id}
 
     if role and role != "All":
         query_str += " and r.role_name = :role_name"

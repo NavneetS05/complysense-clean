@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
-import { useToast } from "../../components/shared/Toast";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 import { Plus, Edit, UserCheck, Building2 } from "lucide-react";
 
 interface Department {
@@ -59,7 +60,7 @@ export default function Departments() {
       setDepartments(res.data);
     } catch { toast.error("Failed to load departments"); }
     setLoading(false);
-  }, [search, statusFilter]);
+  }, [search, statusFilter, toast]);
 
   useEffect(() => { fetchDepartments(); }, [fetchDepartments]);
 
@@ -101,8 +102,8 @@ export default function Departments() {
       }
       setDeptModal({ open: false, editTarget: null });
       fetchDepartments();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Operation failed");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Operation failed"));
     }
     setModalLoading(false);
   }
@@ -116,8 +117,8 @@ export default function Departments() {
       setReviewerModal({ open: false, dept: null });
       setSelectedReviewer("");
       fetchDepartments();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Failed to assign reviewer");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to assign reviewer"));
     }
     setModalLoading(false);
   }

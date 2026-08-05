@@ -10,18 +10,21 @@ interface Breadcrumb {
 interface PageShellProps {
   title: string;
   subtitle?: string;
+  context?: string;
   breadcrumbs?: Breadcrumb[];
   actions?: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function PageShell({
   title,
   subtitle,
+  context,
   breadcrumbs,
   actions,
   children,
 }: PageShellProps) {
+  const effectiveSubtitle = subtitle ?? context;
   return (
     <div className="page-shell">
       <div className="page-shell-header">
@@ -43,7 +46,7 @@ export function PageShell({
             </nav>
           )}
           <h1 className="page-title">{title}</h1>
-          {subtitle && <p className="page-subtitle">{subtitle}</p>}
+          {effectiveSubtitle && <p className="page-subtitle">{effectiveSubtitle}</p>}
         </div>
         {actions && <div className="page-shell-actions">{actions}</div>}
       </div>

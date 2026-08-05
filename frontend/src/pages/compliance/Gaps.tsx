@@ -1,11 +1,13 @@
 // Use: Matrix view of identified compliance gaps sorted by framework.
 
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
-import Loading from "../../components/shared/Loading";
+import { DataTable, Column } from "../../components/shared/DataTable";
+import { PageShell } from "../../components/shared/PageShell";
+import { getFrameworkColor } from "../../lib/frameworkColors";
 import ErrorState from "../../components/shared/ErrorState";
-import EmptyState from "../../components/shared/EmptyState";
 
 type GapRow = {
   gap_id: string;
@@ -15,6 +17,7 @@ type GapRow = {
   title: string;
   remediation_status: string;
   created_at?: string;
+  [key: string]: unknown;
 };
 
 export default function Gaps() {
@@ -23,46 +26,190 @@ export default function Gaps() {
     return Array.isArray(res.data) ? res.data : res.data?.gaps ?? [];
   }, []);
 
-  const gaps: GapRow[] = data ?? [];
+  const gaps = useMemo<GapRow[]>(() => data ?? [], [data]);
+
+  // Filter states
+  const [filters, setFilters] = useState({ search: "", severity: "", framework: "", status: "" });
+
+  // Get unique frameworks and status for filters
+  const frameworks = useMemo(() => {
+    return Array.from(new Set(gaps.map((g) => g.framework_name).filter(Boolean)));
+  }, [gaps]);
+
+  const statuses = useMemo(() => {
+    return Array.from(new Set(gaps.map((g) => g.remediation_status).filter(Boolean)));
+  }, [gaps]);
+
+  // Client-side filtering
+  const filteredGaps = useMemo(() => {
+    return gaps.filter((gap) => {
+      const title = (gap.title || "").toLowerCase();
+      const control = (gap.control_id || "").toLowerCase();
+      const matchesSearch =
+        !filters.search ||
+        title.includes(filters.search.toLowerCase()) ||
+        control.includes(filters.search.toLowerCase());
+      const matchesSeverity = !filters.severity || gap.severity.toLowerCase() === filters.severity.toLowerCase();
+      const matchesFramework = !filters.framework || gap.framework_name === filters.framework;
+      const matchesStatus = !filters.status || gap.remediation_status === filters.status;
+      return matchesSearch && matchesSeverity && matchesFramework && matchesStatus;
+    });
+  }, [gaps, filters]);
+
+  const getSeverityBadgeClass = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case "critical": return "badge-critical";
+      case "high": return "badge-high";
+      case "medium": return "badge-medium";
+      case "low": return "badge-low";
+      default: return "badge-info";
+    }
+  };
+
+  const columns: Column<GapRow>[] = [
+    {
+      key: "severity",
+      label: "Severity",
+      sortable: true,
+      render: (val) => {
+        const severity = String(val || "medium");
+        return (
+          <span className={`badge ${getSeverityBadgeClass(severity)}`}>
+            {severity}
+          </span>
+        );
+      }
+    },
+    {
+      key: "framework_name",
+      label: "Framework",
+      sortable: true,
+      render: (val) => {
+        const name = String(val || "General");
+        const colors = getFrameworkColor(name);
+        return (
+          <span 
+            className="badge" 
+            style={{ 
+              backgroundColor: colors.bg, 
+              color: colors.text, 
+              border: `1px solid ${colors.border}` 
+            }}
+          >
+            {name}
+          </span>
+        );
+      }
+    },
+    {
+      key: "control_id",
+      label: "Control",
+      sortable: true,
+      render: (val) => <span className="font-mono">{String(val || "—")}</span>
+    },
+    {
+      key: "title",
+      label: "Gap",
+      sortable: true,
+      render: (val) => <span style={{ fontWeight: 600 }}>{String(val || "Unnamed Gap")}</span>
+    },
+    {
+      key: "remediation_status",
+      label: "Status",
+      sortable: true,
+      render: (val) => {
+        const status = String(val || "open");
+        const statusClass = status === "closed" || status === "resolved" ? "badge-resolved" : "badge-open";
+        return (
+          <span className={`badge ${statusClass}`}>
+            {status}
+          </span>
+        );
+      }
+    },
+    {
+      key: "actions",
+      label: "Action",
+      render: () => (
+        <Link to="/compliance/tasks" className="btn btn-secondary btn-sm">
+          Create task
+        </Link>
+      )
+    }
+  ];
+
+  if (error) {
+    return (
+      <div className="page-panel">
+        <PageShell title="Compliance Gaps" subtitle="Open and in-progress remediation items across the institution." />
+        <div style={{ marginTop: 16 }}>
+          <ErrorState message={error.message} onRetry={() => void refetch()} />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="page-panel">
-      <h2>Compliance Gaps</h2>
-      <p>Open and in-progress remediation items across the institution.</p>
-      {loading ? (
-        <Loading />
-      ) : error ? (
-        <ErrorState message={error.message} onRetry={() => void refetch()} />
-      ) : gaps.length === 0 ? (
-        <EmptyState title="No gaps" description="No compliance gaps found." actionLabel="Refresh" onAction={() => void refetch()} />
-      ) : (
-        <div className="card" style={{ padding: 16, marginTop: 16 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #e2e8f0" }}>
-                <th style={{ padding: "8px 6px" }}>Severity</th>
-                <th style={{ padding: "8px 6px" }}>Framework</th>
-                <th style={{ padding: "8px 6px" }}>Control</th>
-                <th style={{ padding: "8px 6px" }}>Gap</th>
-                <th style={{ padding: "8px 6px" }}>Status</th>
-                <th style={{ padding: "8px 6px" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gaps.map((gap) => (
-                <tr key={gap.gap_id}>
-                  <td style={{ padding: "8px 6px" }}>{gap.severity}</td>
-                  <td style={{ padding: "8px 6px" }}>{gap.framework_name}</td>
-                  <td style={{ padding: "8px 6px" }}>{gap.control_id ?? "—"}</td>
-                  <td style={{ padding: "8px 6px" }}>{gap.title}</td>
-                  <td style={{ padding: "8px 6px" }}>{gap.remediation_status}</td>
-                  <td style={{ padding: "8px 6px" }}><Link to="/compliance/tasks">Create task</Link></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+    <div style={{ display: "grid", gap: 16 }}>
+      <PageShell 
+        title="Compliance Gaps" 
+        subtitle="Open and in-progress remediation items across the institution." 
+      />
+
+      <section className="card" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 12, padding: 12 }}>
+        <input 
+          className="form-input" 
+          placeholder="Search by title or control ID..." 
+          value={filters.search} 
+          onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} 
+        />
+        <select 
+          className="form-input" 
+          value={filters.severity} 
+          onChange={(e) => setFilters((f) => ({ ...f, severity: e.target.value }))}
+        >
+          <option value="">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select 
+          className="form-input" 
+          value={filters.framework} 
+          onChange={(e) => setFilters((f) => ({ ...f, framework: e.target.value }))}
+        >
+          <option value="">All Frameworks</option>
+          {frameworks.map((fw) => (
+            <option key={fw} value={fw}>{fw}</option>
+          ))}
+        </select>
+        <select 
+          className="form-input" 
+          value={filters.status} 
+          onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+        >
+          <option value="">All Statuses</option>
+          {statuses.map((status) => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+      </section>
+
+      <DataTable 
+        columns={columns} 
+        data={filteredGaps} 
+        loading={loading}
+        emptyTitle="No compliance gaps found"
+        emptyDesc="No compliance gaps match the active filter criteria."
+        keyField="gap_id"
+        pageSize={10}
+        emptyAction={
+          <button className="btn btn-primary btn-sm" onClick={() => void refetch()}>
+            Refresh
+          </button>
+        }
+      />
     </div>
   );
 }

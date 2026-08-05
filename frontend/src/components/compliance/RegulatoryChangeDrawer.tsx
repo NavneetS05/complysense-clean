@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AIPanel } from "../shared/AIPanel";
 import { api } from "../../lib/api";
-import { Sparkles, ArrowRight, AlertTriangle, AlertCircle, CheckCircle, FileText } from "lucide-react";
+import { Sparkles, ArrowRight, AlertTriangle, CheckCircle } from "lucide-react";
+import { getApiErrorMessage } from "../../lib/errors";
+
+type AnalysisResult = {
+  response?: string;
+};
 
 interface RegulatoryChangeDrawerProps {
   open: boolean;
@@ -15,7 +20,7 @@ export function RegulatoryChangeDrawer({ open, onClose }: RegulatoryChangeDrawer
   const [circularText, setCircularText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -29,8 +34,8 @@ export function RegulatoryChangeDrawer({ open, onClose }: RegulatoryChangeDrawer
       });
       setResult(data);
       setLastRunAt(new Date().toLocaleTimeString());
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to analyze regulation. Please try again.");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to analyze regulation. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -48,7 +53,7 @@ export function RegulatoryChangeDrawer({ open, onClose }: RegulatoryChangeDrawer
     const text = result.response;
 
     // Search for a deadline date or risk keywords
-    const deadlineMatch = text.match(/(deadline|by|due date|target date|before|effective from)\s*[:\-\s]*([A-Za-z0-9\s,\-\/]{6,25})/i);
+    const deadlineMatch = text.match(/(deadline|by|due date|target date|before|effective from)\s*[:-]*([A-Za-z0-9\s,\-/]{6,25})/i);
     const deadlineText = deadlineMatch ? deadlineMatch[2].trim() : null;
 
     return (

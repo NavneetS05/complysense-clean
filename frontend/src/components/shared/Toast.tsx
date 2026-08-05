@@ -1,25 +1,8 @@
 // Use: Global toast notification system — success, error, loading, warning variants.
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { CheckCircle, XCircle, Loader2, AlertTriangle, X } from "lucide-react";
-
-type ToastType = "success" | "error" | "loading" | "warning";
-
-interface Toast {
-  id: string;
-  type: ToastType;
-  message: string;
-}
-
-interface ToastContextValue {
-  success: (msg: string) => void;
-  error: (msg: string) => void;
-  loading: (msg: string) => string;
-  dismiss: (id: string) => void;
-  warning: (msg: string) => void;
-}
-
-const ToastCtx = createContext<ToastContextValue | null>(null);
+import { ToastCtx, type Toast, type ToastContextValue, type ToastType } from "./ToastContext";
 
 let _idCounter = 0;
 function genId() {
@@ -53,13 +36,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss]
   );
 
-  const ctx: ToastContextValue = {
+  const ctx: ToastContextValue = useMemo(() => ({
     success: (msg) => { add("success", msg); },
     error: (msg) => { add("error", msg); },
     loading: (msg) => add("loading", msg),
     warning: (msg) => { add("warning", msg); },
     dismiss,
-  };
+  }), [add, dismiss]);
 
   return (
     <ToastCtx.Provider value={ctx}>
@@ -90,10 +73,4 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       </button>
     </div>
   );
-}
-
-export function useToast() {
-  const ctx = useContext(ToastCtx);
-  if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-  return ctx;
 }

@@ -7,19 +7,16 @@ import { RegulatoryChangeDrawer } from "../../components/compliance/RegulatoryCh
 import { 
   Sparkles, 
   AlertTriangle, 
-  Shield, 
   CheckCircle, 
   ArrowRight, 
   RefreshCw, 
   Plus, 
-  Upload, 
-  Check, 
-  FileText, 
   UserPlus, 
   X,
   ChevronDown,
   ChevronUp
 } from "lucide-react";
+import { getApiErrorMessage } from "../../lib/errors";
 
 type DashboardStats = {
   total_controls: number;
@@ -73,7 +70,7 @@ type UserOption = {
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [triage, setTriage] = useState<DashboardRow[]>([]);
+  const [, setTriage] = useState<DashboardRow[]>([]);
   const [todayActions, setTodayActions] = useState<Array<{ title: string; href: string }>>([]);
   const [evidenceQueue, setEvidenceQueue] = useState<EvidenceRow[]>([]);
   const [overdueControls, setOverdueControls] = useState<OverdueControl[]>([]);
@@ -89,7 +86,7 @@ export default function Dashboard() {
 
   // Task Modal states
   const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [taskControlId, setTaskControlId] = useState("");
+  const [, setTaskControlId] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState("medium");
@@ -177,7 +174,7 @@ export default function Dashboard() {
       const { data } = await api.post("/api/v1/ai/compliance/triage", {});
       
       // Parse JSON from LLM response string
-      let rawResponse = data.response || "";
+      const rawResponse = data.response || "";
       let cleanJson = rawResponse.trim();
       if (cleanJson.includes("```")) {
         const match = cleanJson.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -187,9 +184,9 @@ export default function Dashboard() {
       const parsed = JSON.parse(cleanJson) as TriageResult;
       setAiTriageResult(parsed);
       setLastTriageTime(new Date().toLocaleTimeString());
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setAiError(err.response?.data?.detail || "Failed to parse AI triage response. Try regenerating.");
+      setAiError(getApiErrorMessage(err, "Failed to parse AI triage response. Try regenerating."));
     } finally {
       setAiLoading(false);
     }
@@ -220,8 +217,8 @@ export default function Dashboard() {
       setTimeout(() => {
         setTaskModalOpen(false);
       }, 1500);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to create task");
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, "Failed to create task"));
     } finally {
       setTaskSubmitting(false);
     }
@@ -370,7 +367,7 @@ export default function Dashboard() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Citations & Control Mapping</h4>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {aiTriageResult.mapped_controls.map((ctrl, index) => (
+                      {aiTriageResult.mapped_controls.map((ctrl) => (
                         <div 
                           key={ctrl} 
                           style={{ 

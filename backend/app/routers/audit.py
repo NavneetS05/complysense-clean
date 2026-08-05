@@ -44,6 +44,69 @@ class SmartSamplePayload(BaseModel):
     assessment_id: str
 
 
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Handle this function with safety
+async def create_audit_report_entry(
+    session: AsyncSession,
+    *,
+    institution_id: str,
+    generated_by: str,
+    report_name: str,
+    report_type: str,
+    file_path: str,
+    assessment_id: str | None = None,
+) -> Any:
+    result = await session.execute(
+        text(
+            """
+            INSERT INTO audit_reports (
+                institution_id,
+                assessment_id,
+                report_name,
+                report_type,
+                file_path,
+                generated_by
+            )
+            VALUES (
+                :institution_id,
+                :assessment_id,
+                :report_name,
+                :report_type,
+                :file_path,
+                :generated_by
+            )
+            RETURNING
+                report_id,
+                institution_id,
+                assessment_id,
+                report_name,
+                report_type,
+                file_path,
+                generated_by,
+                generated_at
+            """
+        ),
+        {
+            "institution_id": institution_id,
+            "assessment_id": assessment_id,
+            "report_name": report_name,
+            "report_type": str(report_type),
+            "file_path": file_path,
+            "generated_by": generated_by,
+        },
+    )
+
+    row = result.mappings().first()
+
+    if row is None:
+        raise RuntimeError("Failed to create audit report entry.")
+
+    return row
+
 @router.get(
     "/recent",
     summary="Get recent audit logs across the platform (Super Admin) or scoped to institution",

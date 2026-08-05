@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
-import { useToast } from "../../components/shared/Toast";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
 import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Check, Trash2 } from "lucide-react";
 
@@ -78,7 +79,7 @@ export default function CalendarPage() {
       setEvents(res.data ?? []);
     } catch { toast.error("Failed to load events"); }
     setLoading(false);
-  }, [currentDate]);
+  }, [currentDate, toast]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -99,8 +100,8 @@ export default function CalendarPage() {
       setShowModal(false);
       setForm(EMPTY_FORM);
       fetchEvents();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Failed to create event");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create event"));
     }
     setModalLoading(false);
   }

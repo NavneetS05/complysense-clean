@@ -24,11 +24,12 @@ class UserRepository:
         result = await self.session.execute(
             text(
                 """
-                select u.user_id, u.institution_id, u.role_id, r.role_name,
+                select u.user_id, u.institution_id, i.institution_name, u.role_id, r.role_name,
                        u.full_name, u.email, u.password_hash, u.is_active,
                        u.failed_login_attempts, u.blocked_until
                   from users u
                   join roles r on r.role_id = u.role_id
+                  left join institutions i on i.institution_id = u.institution_id
                  where lower(u.email) = lower(:email)
                    and u.is_active = true
                  limit 1
@@ -44,11 +45,12 @@ class UserRepository:
         result = await self.session.execute(
             text(
                 """
-                select u.user_id, u.institution_id, u.role_id, r.role_name,
+                select u.user_id, u.institution_id, i.institution_name, u.role_id, r.role_name,
                        u.full_name, u.email, u.phone, u.designation,
                        u.is_active, u.created_at, u.updated_at
                   from users u
                   join roles r on r.role_id = u.role_id
+                  left join institutions i on i.institution_id = u.institution_id
                  where u.user_id = :user_id
                  limit 1
                 """
@@ -332,4 +334,3 @@ class UserRepository:
         )
         row = result.mappings().first()
         return dict(row) if row else None
-

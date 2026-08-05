@@ -1,6 +1,6 @@
 // Use: Dashboard highlighting technical control status and recent incidents.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../lib/api";
@@ -8,7 +8,6 @@ import { PageShell } from "../../components/shared/PageShell";
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
 import ErrorState from "../../components/shared/ErrorState";
-import EmptyState from "../../components/shared/EmptyState";
 
 interface IncidentSummary {
   incident_id: string;
@@ -59,15 +58,14 @@ export default function Dashboard() {
   }, []);
 
   const { data: incidentsData, loading: loadingIncidents, error: incidentsError, refetch: refetchIncidents } = useApi(async () => {
-    const res = await api.get<IncidentSummary[]>("/api/v1/incidents", { params: { limit: 5 } });
+    const res = await api.get<IncidentSummary[] | { incidents?: IncidentSummary[] }>('/api/v1/incidents', { params: { limit: 5 } });
     return Array.isArray(res.data) ? res.data : res.data?.incidents ?? [];
   }, []);
 
-  useState(() => {
+  useEffect(() => {
     if (statsData) setStats(statsData as DashboardStats);
     if (incidentsData) setIncidents(incidentsData as IncidentSummary[]);
-    return undefined;
-  });
+  }, [statsData, incidentsData]);
 
   const criticalAlert = useMemo(() => {
     if (!stats) return false;

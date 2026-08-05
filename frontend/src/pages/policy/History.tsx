@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
-import { FileText, CheckCircle, XCircle, Eye } from "lucide-react";
+import { PageShell } from "../../components/shared/PageShell";
+import { CheckCircle, XCircle, Eye } from "lucide-react";
 
 type Policy = {
   policy_id: string;

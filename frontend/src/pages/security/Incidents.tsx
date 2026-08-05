@@ -8,6 +8,9 @@ import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
 import ErrorState from "../../components/shared/ErrorState";
 import EmptyState from "../../components/shared/EmptyState";
+import { ConfirmModal } from "../../components/shared/ConfirmModal";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 
 interface IncidentItem {
   incident_id: string;
@@ -43,10 +46,15 @@ function formatDeadline(incident: IncidentItem) {
 export default function Incidents() {
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [confirmCloseId, setConfirmCloseId] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  const toast = useToast();
 
   const { data, loading, error, refetch } = useApi(async () => {
-    const res = await api.get<IncidentItem[]>("/api/v1/incidents", { params: { limit: 100 } });
-    return Array.isArray(res.data) ? res.data : res.data?.incidents ?? [];
+    const res = await api.get("/api/v1/incidents", { params: { limit: 100 } });
+    const payload = res.data as IncidentItem[] | { incidents?: IncidentItem[] };
+    return Array.isArray(payload) ? payload : payload.incidents ?? [];
   }, []);
 
   useEffect(() => {
@@ -70,9 +78,17 @@ export default function Incidents() {
   }, [incidents]);
 
   async function closeIncident(incidentId: string) {
-    if (!window.confirm("Mark this incident as closed?")) return;
-    await api.patch(`/api/v1/incidents/${incidentId}`, { status: "closed" });
-    await load();
+    setClosing(true);
+    try {
+      await api.patch(`/api/v1/incidents/${incidentId}`, { status: "closed" });
+      toast.success("Incident closed successfully.");
+      await refetch();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to close incident."));
+    } finally {
+      setClosing(false);
+      setConfirmCloseId(null);
+    }
   }
 
   return (
@@ -125,13 +141,25 @@ export default function Incidents() {
                 <td style={{ padding: 10 }}>{formatDeadline(incident)}</td>
                 <td style={{ padding: 10 }}>
                   <Link to={`/security/incidents/${incident.incident_id}`}>View</Link>
-                  {incident.status === "resolved" ? <span> • <button onClick={() => void closeIncident(incident.incident_id)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}>Close</button></span> : null}
+                  {incident.status === "resolved" ? <span> • <button onClick={() => setConfirmCloseId(incident.incident_id)} style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer" }}>Close</button></span> : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <ConfirmModal
+        open={confirmCloseId !== null}
+        title="Close Incident"
+        description="Are you sure you want to mark this incident as closed? This action cannot be undone."
+        confirmLabel="Close Incident"
+        confirmVariant="destructive"
+        loading={closing}
+        onConfirm={() => confirmCloseId && void closeIncident(confirmCloseId)}
+        onCancel={() => setConfirmCloseId(null)}
+      />
     </div>
   );
 }
+

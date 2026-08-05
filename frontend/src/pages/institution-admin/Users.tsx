@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
-import { useToast } from "../../components/shared/Toast";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 import { UserPlus, Lock, Unlock, AlertCircle } from "lucide-react";
 
 interface User {
@@ -67,7 +68,7 @@ export default function Users() {
       setUsers(res.data);
     } catch { toast.error("Failed to load users"); }
     setLoading(false);
-  }, [search, roleFilter, statusFilter]);
+  }, [search, roleFilter, statusFilter, toast]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
   useEffect(() => {
@@ -93,8 +94,8 @@ export default function Users() {
       setInviteModal(false);
       setForm(EMPTY_INVITE);
       fetchUsers();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Invite failed");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Invite failed"));
     }
     setModalLoading(false);
   }
@@ -108,8 +109,8 @@ export default function Users() {
       setRoleModal({ open: false, user: null });
       setNewRole("");
       fetchUsers();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Failed to change role");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to change role"));
     }
     setModalLoading(false);
   }

@@ -53,7 +53,7 @@ export default function NewIncident() {
 
   return (
     <div className="page-panel">
-      <PageShell title="Log New Incident" context="Fast incident intake with CERT-In clock start." />
+      <PageShell title="Log New Incident" subtitle="Fast incident intake with CERT-In clock start." />
       <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: 12, marginTop: 16 }}>
         ℹ Logging an incident starts the CERT-In 6-hour reporting clock from the detected time you enter below.
       </div>

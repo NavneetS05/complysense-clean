@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download, Eye, FileText } from "lucide-react";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
 
 type Report = {

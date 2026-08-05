@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Send } from "lucide-react";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
 import { CitationChip } from "../../components/shared/CitationChip";
 

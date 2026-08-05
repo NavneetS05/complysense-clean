@@ -59,11 +59,12 @@ async def get_current_user(
     result = await session.execute(
         text(
             """
-            select u.user_id, u.institution_id, u.role_id,
+            select u.user_id, u.institution_id, i.institution_name, u.role_id,
                    primary_role.role_name,
                    active_role.role_name   as active_role_name,
-                   u.email, u.is_active
+                   u.email, u.full_name, u.phone, u.designation, u.is_active
               from users u
+              left join institutions i on i.institution_id = u.institution_id
               join roles primary_role on primary_role.role_id = u.role_id
               join roles active_role  on active_role.role_id  = :active_role_id
              where u.user_id = :user_id
@@ -82,11 +83,15 @@ async def get_current_user(
     return UserContext(
         user_id=str(row["user_id"]),
         institution_id=str(row["institution_id"]),
+        institution_name=str(row["institution_name"]) if row["institution_name"] else None,
         role_id=str(row["role_id"]),
         role_name=str(row["role_name"]),
         active_role_id=str(session_record["active_role_id"]),
         active_role_name=str(row["active_role_name"]),
         email=str(row["email"]),
+        full_name=str(row["full_name"]) if row["full_name"] else None,
+        phone=str(row["phone"]) if row["phone"] else None,
+        designation=str(row["designation"]) if row["designation"] else None,
         permissions=permissions,
         session_id=session_id,
     )

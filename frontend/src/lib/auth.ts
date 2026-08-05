@@ -33,6 +33,14 @@ export async function fetchCurrentUser(): Promise<AuthUser> {
   return res.data;
 }
 
+export async function updateProfile(payload: {
+  full_name?: string;
+  phone?: string;
+  designation?: string;
+}): Promise<void> {
+  await api.patch("/api/v1/auth/me", payload);
+}
+
 export async function refreshSession(): Promise<LoginResponse> {
   const res = await api.post<LoginResponse>("/api/v1/auth/refresh");
   return res.data;

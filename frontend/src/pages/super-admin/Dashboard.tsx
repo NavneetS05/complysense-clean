@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
-import { AlertTriangle, X, Building2, Users, Siren, BarChart3, TrendingUp, Eye, ScrollText } from "lucide-react";
+import { AlertTriangle, X, Building2, Users, Siren, BarChart3, Eye, ScrollText } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 interface PlatformStats {

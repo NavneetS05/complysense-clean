@@ -5,7 +5,9 @@ import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
 import ErrorState from "../../components/shared/ErrorState";
-import EmptyState from "../../components/shared/EmptyState";
+import { ConfirmModal } from "../../components/shared/ConfirmModal";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 
 type ObservationItem = {
   observation_id: string;
@@ -21,6 +23,11 @@ type ObservationItem = {
 
 export default function Observations() {
   const [rows, setRows] = useState<ObservationItem[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const toast = useToast();
+
   const { data, loading, error, refetch } = useApi(async () => {
     const res = await api.get("/api/v1/audit/observations");
     return Array.isArray(res.data) ? res.data : res.data?.observations ?? [];
@@ -30,10 +37,9 @@ export default function Observations() {
     if (!data) return;
     setRows(data as ObservationItem[]);
   }, [data]);
+  
   const [selected, setSelected] = useState<ObservationItem | null>(null);
   const [filters, setFilters] = useState({ search: "", severity: "All", status: "All" });
-
-  
 
   const visibleRows = useMemo(() => rows.filter((row) => {
     const matchesSearch = !filters.search || `${row.observation_text} ${row.control_id || ""}`.toLowerCase().includes(filters.search.toLowerCase());
@@ -50,17 +56,54 @@ export default function Observations() {
   }), [rows]);
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Delete this observation?")) {
-      return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/v1/audit/observations/${id}`);
+      setRows((current) => current.filter((row) => row.observation_id !== id));
+      toast.success("Observation deleted successfully.");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to delete observation."));
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteId(null);
     }
-    await api.delete(`/api/v1/audit/observations/${id}`);
-    setRows((current) => current.filter((row) => row.observation_id !== id));
   }
 
   async function handleToggleStatus(id: string, nextStatus: string) {
-    await api.patch(`/api/v1/audit/observations/${id}`, { status: nextStatus });
-    setRows((current) => current.map((row) => row.observation_id === id ? { ...row, status: nextStatus } : row));
+    try {
+      await api.patch(`/api/v1/audit/observations/${id}`, { status: nextStatus });
+      setRows((current) => current.map((row) => row.observation_id === id ? { ...row, status: nextStatus } : row));
+      toast.success(`Observation marked as ${nextStatus}.`);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to update observation status."));
+    }
   }
+
+  const getSeverityBadgeClass = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case "finding":
+        return "badge-critical";
+      case "recommendation":
+        return "badge-pending";
+      case "observation":
+        return "badge-in_progress";
+      default:
+        return "badge-na";
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "resolved":
+        return "badge-resolved";
+      case "acknowledged":
+        return "badge-pending";
+      case "open":
+        return "badge-open";
+      default:
+        return "badge-na";
+    }
+  };
 
   return (
     <div className="page-panel" style={{ display: "grid", gap: 16 }}>
@@ -105,8 +148,8 @@ export default function Observations() {
                   <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>{row.control_id || "Control"} • {row.framework_name || "Framework"}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ padding: "4px 10px", borderRadius: 999, background: row.severity === "finding" ? "#fee2e2" : row.severity === "recommendation" ? "#fef3c7" : "#dbeafe", color: row.severity === "finding" ? "#b91c1c" : row.severity === "recommendation" ? "#92400e" : "#1d4ed8", fontSize: 12, fontWeight: 700 }}>{row.severity}</span>
-                  <span style={{ padding: "4px 10px", borderRadius: 999, background: row.status === "resolved" ? "#dcfce7" : row.status === "acknowledged" ? "#fef3c7" : "#fee2e2", color: row.status === "resolved" ? "#166534" : row.status === "acknowledged" ? "#92400e" : "#b91c1c", fontSize: 12, fontWeight: 700 }}>{row.status}</span>
+                  <span className={`badge ${getSeverityBadgeClass(row.severity)}`}>{row.severity}</span>
+                  <span className={`badge ${getStatusBadgeClass(row.status)}`}>{row.status}</span>
                 </div>
               </div>
               <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", color: "#64748b", fontSize: 13 }}>
@@ -116,7 +159,7 @@ export default function Observations() {
               <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {row.status !== "resolved" ? <button onClick={() => handleToggleStatus(row.observation_id, row.status === "acknowledged" ? "resolved" : "acknowledged")} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white" }}>{row.status === "acknowledged" ? "Resolve" : "Acknowledge"}</button> : null}
                 <button onClick={() => setSelected(row)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white" }}>View</button>
-                <button onClick={() => handleDelete(row.observation_id)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #dc2626", color: "#dc2626", background: "white" }}>Delete</button>
+                <button onClick={() => setConfirmDeleteId(row.observation_id)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #dc2626", color: "#dc2626", background: "white" }}>Delete</button>
               </div>
             </div>
           ))}
@@ -137,6 +180,17 @@ export default function Observations() {
           <div>Added: {selected.created_at ? new Date(selected.created_at).toLocaleString() : "—"}</div>
         </div>
       </div> : null}
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Delete Observation"
+        description="Are you sure you want to delete this observation? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        loading={deleting}
+        onConfirm={() => confirmDeleteId && void handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

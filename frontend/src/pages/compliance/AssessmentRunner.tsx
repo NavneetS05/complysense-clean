@@ -1,12 +1,24 @@
 // Use: Assessment question wizard capturing control answers.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
 import ErrorState from "../../components/shared/ErrorState";
 import EmptyState from "../../components/shared/EmptyState";
+
+type ControlRecord = {
+  control_id: string;
+  framework_name?: string;
+  control_title?: string;
+};
+
+type AssessmentQuestion = {
+  id: string;
+  control_id: string;
+  prompt: string;
+};
 
 type AssessmentData = {
   assessment_id: string;
@@ -23,24 +35,24 @@ export default function AssessmentRunner() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: assessment, loading: loadingAssessment, error: assessmentError, refetch: refetchAssessment } = useApi<AssessmentData | null>(async () => {
-    if (!id) return null as any;
+    if (!id) return null;
     const res = await api.get(`/api/v1/assessments/${id}`);
     return res.data as AssessmentData;
   }, [id]);
 
-  const { data: questionsData, loading: loadingQuestions, error: questionsError, refetch: refetchQuestions } = useApi(async () => {
-    if (!assessment) return [] as any[];
+  const { data: questionsData, loading: loadingQuestions, error: questionsError, refetch: refetchQuestions } = useApi<AssessmentQuestion[]>(async () => {
+    if (!assessment) return [];
     const res = await api.get(`/api/v1/controls`);
-    const controls = Array.isArray(res.data) ? res.data : res.data?.controls ?? [];
-    const relevant = controls.filter((c: any) => c.framework_name === assessment.framework_name);
-    return relevant.map((c: any) => ({ id: `Q-${c.control_id}`, control_id: c.control_id, prompt: c.control_title || c.control_id }));
+    const controls = (Array.isArray(res.data) ? res.data : res.data?.controls ?? []) as ControlRecord[];
+    const relevant = controls.filter((c) => c.framework_name === assessment.framework_name);
+    return relevant.map((c) => ({ id: `Q-${c.control_id}`, control_id: c.control_id, prompt: c.control_title || c.control_id }));
   }, [assessment]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  const questions = (questionsData as { id: string; control_id: string; prompt: string }[]) ?? [];
+  const questions = questionsData ?? [];
 
   const question = questions[currentIndex];
   const progress = useMemo(() => ((currentIndex + 1) / Math.max(questions.length, 1)) * 100, [currentIndex, questions.length]);

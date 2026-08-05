@@ -55,7 +55,10 @@ export function Topbar() {
         const res = await api.get("/api/v1/notifications", {
           params: { limit: 10, unread: true },
         });
-        setNotifications(res.data.notifications ?? []);
+        setNotifications((res.data.notifications ?? []).map((n: { notification_type?: string; type?: string }) => ({
+          ...n,
+          type: n.type ?? n.notification_type ?? "notification",
+        })));
         setUnreadCount(res.data.unread_count ?? 0);
       } catch { /* silently ignore — no token yet, etc. */ }
     }

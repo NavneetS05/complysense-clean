@@ -1,53 +1,158 @@
-Here's what's non-negotiable in a real GRC platform, mapped to what applies specifically to ComplySense's stack and constraints.
-1. Multi-tenancy isolation (highest risk in your architecture)
+This is a functional-completion pass, NOT a styling pass. The goal here is
+making broken/fake/unverified things real. Do not apply visual polish,
+color changes, or the UI improvement work from the separate UI prompt in
+this pass — stay focused on function.
 
-Every query must filter by institution_id at the query layer, not just at the API layer — a missed WHERE clause is a cross-tenant data leak, not a bug.
-Row-level security (RLS) in PostgreSQL/Neon should be the enforcement mechanism, not application-code discipline alone. If you're not using Postgres RLS policies per table, that's a real gap — app-layer filtering alone fails the moment someone adds a new query path and forgets it.
-MongoDB (control library) needs equivalent tenant-scoping on every collection query — Mongo has no RLS equivalent, so this is 100% application-enforced and needs a single shared query-builder function, not ad-hoc filters per route.
-Redis keys must be namespaced by institution_id too, or cache poisoning across tenants becomes possible.
+════════════════════════════════════════════════════════════════
+1. IMPLEMENT REAL STUBS (currently render nothing functional)
+════════════════════════════════════════════════════════════════
 
-2. Audit trail immutability
+Quick check first for each file: confirm it's still a stub before doing
+work — if it's already been implemented since this was last reviewed,
+skip it and report "already implemented."
 
-GRC platforms live or die on "who did what, when, to what evidence." The audit_logs table (if it exists — you're verifying this) must be append-only — no UPDATE or DELETE permission at the DB role level, not just app-level convention.
-Every state-changing action needs an audit entry: control status change, evidence upload/approval/rejection, policy approval, role assumption, incident creation. This isn't optional polish — auditors (real ones, using your Auditor role) will specifically check for gaps in this trail.
-Timestamps must be server-generated, never client-supplied, or the trail is falsifiable.
+1a. frontend/src/pages/compliance/Notifications.tsx
+    Currently a one-line placeholder with zero API calls. The backend
+    for this is fully built and confirmed working:
+      GET /api/v1/notifications?limit=N&unread=true/false
+        -> { notifications: [...], unread_count: N }
+      PATCH /api/v1/notifications/read-all -> { message: "ok" }
+    Build a real page: fetch and list notifications (title, message,
+    notification_type, created_at, is_read), a "Mark all read" button
+    calling the PATCH endpoint, loading/error/empty states using the
+    existing shared components (Loading, ErrorState, EmptyState — same
+    pattern as compliance/EvidenceQueue.tsx). Clicking a notification
+    should navigate based on related_entity_type/related_entity_id if
+    present — check how Topbar.tsx's NotifItem already does this routing
+    (getNotifBasePath + paths mapping) and reuse/mirror that same routing
+    logic here rather than inventing new navigation rules.
 
-3. Evidence integrity
+1b. frontend/src/pages/vendor/NewVendor.tsx
+    Currently a one-line placeholder. Build a real form matching the
+    backend contract (POST /api/v1/vendors):
+      vendor_name (required), product_name, vendor_category (select:
+      cloud/saas/payment/data_processor/security/other), processing_location,
+      dpa_available (checkbox), model_training_allowed (checkbox),
+      contract_expiry_date (date), contact_email
+    On success, navigate to /vendor/vendors/{new_vendor_id} (the detail
+    page, which already exists and works — VendorDetail.tsx). Match the
+    form styling/structure already used in institution-admin/Departments.tsx
+    or Tenants.tsx's "Add" modal pattern for consistency (form-group,
+    form-label, form-input classes), but as a full page, not a modal,
+    since this route is a dedicated page.
 
-Evidence files (Supabase Storage) need checksums stored alongside the DB record, so evidence can't be silently swapped after approval without detection.
-Evidence should be immutable once approved — a new upload should create a new version, not overwrite. Version history matters for audit defensibility.
-Access to evidence download should itself be logged (who viewed what evidence, when) — this is standard in ISO 27001 and NIST SP 800-53 audit requirements.
+1c. frontend/src/pages/vendor/ExpiryTracker.tsx
+    Currently a one-line placeholder. Build a real page listing vendors
+    with an upcoming or past contract_expiry_date, sourced from
+    GET /api/v1/vendors (same endpoint vendor/Dashboard.tsx already uses).
+    Group or sort by urgency (already expired / expiring in 30 days /
+    expiring in 90 days / later), reusing the same expiringSoon logic
+    already written in vendor/Dashboard.tsx (90-day window check) as the
+    basis — don't reinvent that calculation, factor it out into a shared
+    helper if convenient, or just duplicate the same logic consistently.
 
-4. RBAC + segregation of duties
+1d. frontend/src/pages/dept/SelfAssessment.tsx
+    This is the most important one — it currently LOOKS fully functional
+    but handleSubmit only sets local state and calls no API at all. This
+    is actively misleading users into thinking their submission was saved.
+    First: check if a backend endpoint for self-assessments exists at all
+    (search backend/app/routers/ for anything matching "self_assessment"
+    or "self-assessment" or similar). 
+      - If NO such endpoint exists: do not fabricate a fake save. Instead,
+        add a clearly visible notice on the page itself (not just a
+        console warning) stating this feature is not yet connected to
+        the backend, and report this back explicitly as a blocker needing
+        a backend endpoint before this can be completed.
+      - If an endpoint DOES exist: wire the form to actually call it,
+        remove the fake local-only success state, and use the real API
+        response to confirm success/failure with proper error handling.
 
-The classic GRC control: the person who uploads evidence should not be the same person who approves it (even if same role in a small team, the system should support the separation for institutions that need it).
-Nine roles means the permission matrix is large — this needs to be centrally defined (a single source-of-truth permissions table/config), not scattered if role == checks across routes. Scattered checks are how privilege escalation bugs happen.
-Role assumption/impersonation (if Super Admin can view as another role) must itself be audit-logged with start/exit timestamps — you already have this in your notification events list, good sign it's designed in.
+════════════════════════════════════════════════════════════════
+2. FIX MISLEADING/DEAD-END UI ELEMENTS
+════════════════════════════════════════════════════════════════
 
-5. Data sovereignty (your hard constraint)
+2a. frontend/src/components/shared/Sidebar.tsx
+    "Profile Settings" menu item navigates to `/profile`, but no such
+    route exists anywhere in the route files (AppRouter.tsx or any role
+    route file). Either:
+      - remove this menu item entirely until a profile page exists, or
+      - if backend/app/routers/auth.py's PATCH /auth/me (update own
+        profile) is meant to back a real profile page, flag this back
+        to me as a missing page to build rather than silently deleting
+        the menu item.
+    Do not guess — report which of these two you find and did, and why.
 
-Ollama local-only for sensitive data is good — but verify nothing sensitive ever transits to Gemini 2.5 Flash. This needs to be enforced structurally (separate code paths / separate service boundaries), not by convention, since a refactor six months from now could accidentally route sensitive prompts through the wrong LLM call.
-Document explicitly, per AI endpoint, which model handles it and why — this itself may need to be part of your compliance posture documentation (ironic but real: a GRC platform should be able to pass its own audit).
+2b. frontend/src/components/shared/Sidebar.tsx
+    The institution name shown under the brand logo currently renders
+    the raw institution_id (a UUID), not the institution's actual name:
+      {user.role_name !== "Super Admin" && (
+        <div className="sidebar-institution-name">
+          {user.institution_id}
+        </div>
+      )}
+    The AuthUser type (frontend/src/types/auth.ts) does not currently
+    carry an institution_name field. Check backend/app/schemas/auth.py's
+    UserContext model — if it also lacks institution_name, this needs a
+    backend change (add institution_name to the UserContext response,
+    joining from the institutions table) before the frontend can display
+    it correctly. Report this as a backend-dependent fix if that's the
+    case, rather than working around it with another API call from the
+    sidebar itself (which would fire on every page load unnecessarily).
 
-6. Framework mapping consistency
+════════════════════════════════════════════════════════════════
+3. REMOVE HARDCODED CONTENT THAT SHOULD BE DYNAMIC
+════════════════════════════════════════════════════════════════
 
-Controls mapped to multiple frameworks (DPDp, ISO 27001, NIST CSF, NIST SP 800-53, IT Act/CERT-In, UGC/NAAC) — the mapping table needs referential integrity. A control that's "satisfied" under one framework but the mapping silently breaks for another framework is a correctness bug that undermines the whole product's value proposition.
-Framework version tracking: ISO 27001:2022 vs older versions, NIST CSF 2.0 vs 1.1 — controls mapped to a specific framework version need to say so, since requirements change between versions.
+3a. frontend/src/pages/dept/TaskWizard.tsx
+    The "Suggested completion checklist" (3 bullet points under the task
+    details) is static hardcoded JSX text, identical for every task
+    regardless of what the task actually is. Check whether task_description
+    or any other field on the task object could reasonably drive this
+    content instead. If there's no real per-task data to base a checklist
+    on, leave the content as-is but relabel it clearly as generic guidance
+    (e.g. "General submission checklist") rather than implying it's
+    task-specific — do not remove the checklist, just stop presenting
+    generic advice as if it were tailored to this task.
 
-7. Notification / SLA correctness
+3b. frontend/src/pages/institution-admin/Dashboard.tsx
+    handleGenerateRiskHeatmap() has this duplicate/dead fallback:
+      const risks = res.data?.ai_risks ?? res.data?.ai_risks ?? [];
+    Fix to:
+      const risks = res.data?.ai_risks ?? [];
 
-Since this is the piece you're actually building: notifications for overdue tasks, pending approvals, evidence expiry need to be reliable, not best-effort. A missed "evidence expiring in 7 days" notification is a compliance failure for the institution using your product. Consider whether this needs a scheduled job (not just event-triggered) to catch time-based conditions (expiry, overdue) that don't have a discrete triggering event.
+════════════════════════════════════════════════════════════════
+4. VERIFY UNCONFIRMED API ENDPOINTS AGAINST BACKEND
+════════════════════════════════════════════════════════════════
 
-8. Data retention & right-to-erasure (DPDP Act specific)
+These frontend pages call backend routes that have not yet been confirmed
+to exist with matching paths/response shapes. For each, open the
+corresponding backend router file and check. Do NOT fix anything here yet
+— only report findings (path exists / path missing / response shape
+mismatch) so a decision can be made afterward.
 
-DPDP Act 2023 requires data principal rights (access, correction, erasure) — does ComplySense have any mechanism for an institution to fulfill a data subject request? This is often missed in v1 GRC builds because it's not urgent until it's legally urgent.
-Retention policies per data type (evidence, audit logs — note audit logs often need to be retained even under an erasure request, which is a real tension worth documenting explicitly).
+  - frontend/src/pages/compliance/Policies.tsx,
+    frontend/src/pages/policy/Inbox.tsx,
+    frontend/src/pages/policy/History.tsx,
+    frontend/src/pages/policy/PolicyReview.tsx
+    all call /api/v1/policies* — check against backend/app/routers/policies.py
+    (confirm this file exists and its routes match: GET "", POST "",
+    GET "/{id}", PATCH "/{id}", GET "/reports", POST "/reports/generate")
 
-9. Export/reporting integrity
+  - frontend/src/pages/super-admin/AuditTrail.tsx,
+    frontend/src/pages/super-admin/TenantDetail.tsx,
+    frontend/src/pages/super-admin/Dashboard.tsx,
+    frontend/src/pages/auditor/Observations.tsx
+    call /api/v1/audit/logs, /api/v1/audit/recent, /api/v1/audit/observations
+    — check against backend/app/routers/audit.py (plain, non-AI version —
+    NOT ai/audit.py) and confirm these routes exist with matching params
+    (page, limit, institution_id, action_type, user_search, from_date,
+    to_date for /audit/logs; limit for /audit/recent)
 
-CERT-In reports, audit reports — exported documents need to be reproducible and tamper-evident. If two people export "the same" report at different times, and underlying data changed, the export should reflect a point-in-time snapshot, not silently be regenerated from live data without saying so.
+  - frontend/src/pages/institution-admin/Users.tsx,
+    frontend/src/pages/super-admin/TenantDetail.tsx
+    call /api/v1/users*, /api/v1/users/invite, /api/v1/users/{id}/role,
+    /api/v1/users/{id}/unlock, /api/v1/users/{id}/status — check against
+    backend/app/routers/users.py
 
-10. Frontend-specific
-
-No sensitive data (evidence content, control descriptions with sensitive info) should be cached in browser storage beyond session — check whether any Zustand/localStorage persistence accidentally persists sensitive GRC data client-side.
-Every action with compliance consequence (approve, reject, submit) needs a confirmation step — the audit already flagged confirmation modals as partially scaffolded; this isn't UX polish, it's a control against accidental state changes that create false compliance records.
+Report back a simple table: file | endpoint called | status (confirmed /
+missing / mismatched — describe the mismatch) for every one of the above.

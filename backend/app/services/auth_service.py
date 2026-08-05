@@ -114,11 +114,15 @@ class AuthService:
         context = UserContext(
             user_id=str(new_user["user_id"]),
             institution_id=str(new_user["institution_id"]),
+            institution_name=str(new_user["institution_name"]) if new_user.get("institution_name") else None,
             role_id=str(new_user["role_id"]),
             role_name="",  # no join on creation — refreshed on next login
             active_role_id=str(new_user["role_id"]),
             active_role_name="",
             email=str(new_user["email"]),
+            full_name=str(new_user["full_name"]) if new_user.get("full_name") else None,
+            phone=str(new_user["phone"]) if new_user.get("phone") else None,
+            designation=str(new_user["designation"]) if new_user.get("designation") else None,
             permissions=permissions,
             session_id=session_id,
         )
@@ -217,11 +221,15 @@ class AuthService:
         context = UserContext(
             user_id=user_id,
             institution_id=institution_id,
+            institution_name=str(user["institution_name"]) if user.get("institution_name") else None,
             role_id=role_id,
             role_name=str(user["role_name"]),
             active_role_id=role_id,
             active_role_name=str(user["role_name"]),
             email=str(user["email"]),
+            full_name=str(user["full_name"]) if user.get("full_name") else None,
+            phone=str(user["phone"]) if user.get("phone") else None,
+            designation=str(user["designation"]) if user.get("designation") else None,
             permissions=permissions,
             session_id=session_id,
         )
@@ -297,11 +305,15 @@ class AuthService:
         context = UserContext(
             user_id=user_id,
             institution_id=institution_id,
+            institution_name=str(user["institution_name"]) if user.get("institution_name") else None,
             role_id=str(user["role_id"]),
             role_name=str(user["role_name"]),
             active_role_id=role_id,
             active_role_name=str(existing_session["role_name"]),
             email=str(user["email"]),
+            full_name=str(user["full_name"]) if user.get("full_name") else None,
+            phone=str(user["phone"]) if user.get("phone") else None,
+            designation=str(user["designation"]) if user.get("designation") else None,
             permissions=permissions,
             session_id=new_session_id,
         )
@@ -486,11 +498,15 @@ class AuthService:
         restored_context = UserContext(
             user_id=user.user_id,
             institution_id=user.institution_id,
+            institution_name=user.institution_name,
             role_id=primary_role_id,
             role_name=role_name,
             active_role_id=primary_role_id,
             active_role_name=role_name,
             email=user.email,
+            full_name=primary_user.get("full_name") if primary_user else user.full_name,
+            phone=primary_user.get("phone") if primary_user else user.phone,
+            designation=primary_user.get("designation") if primary_user else user.designation,
             permissions=permissions,
             session_id=user.session_id,
         )

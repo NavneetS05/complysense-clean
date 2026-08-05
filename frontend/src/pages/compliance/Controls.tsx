@@ -32,7 +32,7 @@ export default function Controls() {
     return Array.isArray(res.data) ? res.data : res.data?.controls ?? [];
   }, []);
 
-  const controls: ControlAssignment[] = data ?? [];
+  const controls = useMemo<ControlAssignment[]>(() => data ?? [], [data]);
 
   const grouped = useMemo(() => {
     return COLUMN_META.reduce((acc, column) => {

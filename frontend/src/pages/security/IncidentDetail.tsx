@@ -43,7 +43,7 @@ export default function IncidentDetail() {
   const navigate = useNavigate();
   const [incident, setIncident] = useState<IncidentDetailData | null>(null);
   const { data, loading, error, refetch } = useApi(async () => {
-    if (!id) return null as any;
+    if (!id) return null;
     const res = await api.get<IncidentDetailData>(`/api/v1/incidents/${id}`);
     return res.data as IncidentDetailData;
   }, [id]);
@@ -58,7 +58,7 @@ export default function IncidentDetail() {
   async function updateStatus(nextStatus: string) {
     if (!id) return;
     await api.patch(`/api/v1/incidents/${id}`, { status: nextStatus });
-    await load();
+    await refetch();
   }
 
   if (loading) return <div className="page-panel"><Loading /></div>;
@@ -67,7 +67,7 @@ export default function IncidentDetail() {
 
   return (
     <div className="page-panel">
-      <PageShell title="Incident Command Center" context="CERT-In countdown and response workspace." />
+      <PageShell title="Incident Command Center" subtitle="CERT-In countdown and response workspace." />
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.7fr", gap: 16, marginTop: 16 }}>
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>

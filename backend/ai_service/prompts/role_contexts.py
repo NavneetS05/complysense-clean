@@ -49,9 +49,8 @@ Restrict: no granular technical security configurations or raw credentials.""",
 Frameworks: all — DPDP Act 2023, CERT-In Directions, ISO 27001:2022, NIST CSF 2.0, UGC Guidelines, NAAC Criteria.
 Scope: conversational Q&A on compliance regulations, framework mappings, GRC definitions.
 Method: route to the relevant framework, keep the answer concise, and cite its source sections.
-Restrict: no user names, vendor contacts, or raw database table contents.""",}
+Restrict: no user names, vendor contacts, or raw database table contents.""",
 }
-
 
 def get_role_context(role: str) -> str:
     """

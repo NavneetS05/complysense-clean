@@ -1,23 +1,20 @@
 // Use: Vendor detail and contract analysis workspace. Shows vendor profile, risk history, and AI contract analyzer drawer.
 
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { AIPanel } from "../../components/shared/AIPanel";
 import { CitationChip } from "../../components/shared/CitationChip";
 import {
   Sparkles,
-  ArrowLeft,
   Building2,
-  MapPin,
-  FileCheck,
   AlertTriangle,
   CheckCircle,
-  RefreshCw,
   Shield,
   Clock,
 } from "lucide-react";
+import { getApiErrorMessage } from "../../lib/errors";
 
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
@@ -53,12 +50,16 @@ const RISK_COLORS: Record<string, string> = {
   low: "#10B981",
 };
 
+type ContractAnalysisResult = {
+  response?: string;
+  citations?: string[];
+};
+
 export default function VendorDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const { data, loading, error, refetch } = useApi(async () => {
-    if (!id) return null as any;
+    if (!id) return null;
     const res = await api.get<Vendor>(`/api/v1/vendors/${id}`);
     return res.data as Vendor;
   }, [id]);
@@ -68,7 +69,7 @@ export default function VendorDetail() {
   const [contractText, setContractText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<any>(null);
+  const [aiResult, setAiResult] = useState<ContractAnalysisResult | null>(null);
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
 
   useEffect(() => {
@@ -87,8 +88,8 @@ export default function VendorDetail() {
       });
       setAiResult(data);
       setLastRunAt(new Date().toLocaleTimeString());
-    } catch (err: any) {
-      setAiError(err.response?.data?.detail || "Failed to analyze contract.");
+    } catch (err: unknown) {
+      setAiError(getApiErrorMessage(err, "Failed to analyze contract."));
     } finally {
       setAiLoading(false);
     }

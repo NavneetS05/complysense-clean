@@ -1,9 +1,9 @@
 // Use: Policy diff and approval workspace. Integrates AI conflict detection and executive summary parallel queries.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../lib/api";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 import { 
   Sparkles, 
   CheckCircle, 
@@ -13,6 +13,7 @@ import {
   RefreshCw,
   TrendingUp
 } from "lucide-react";
+import { getApiErrorMessage } from "../../lib/errors";
 
 type Policy = {
   policy_id: string;
@@ -43,7 +44,7 @@ export default function PolicyReview() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [decisionLoading, setDecisionLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!id) return;
     try {
       const { data } = await api.get<Policy>(`/api/v1/policies/${id}`);
@@ -53,11 +54,11 @@ export default function PolicyReview() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     void load();
-  }, [id]);
+  }, [load]);
 
   const handleRunAnalysis = async () => {
     if (!id) return;
@@ -70,8 +71,8 @@ export default function PolicyReview() {
       setAiSummary(data.executive_summary?.response || "No summary available.");
       setAiConflicts(data.conflicts?.response || "No conflict analysis returned.");
       setHasRunAnalysis(true);
-    } catch (err: any) {
-      setAiError(err.response?.data?.detail || "Failed to analyze policy document.");
+    } catch (err: unknown) {
+      setAiError(getApiErrorMessage(err, "Failed to analyze policy document."));
     } finally {
       setAiLoading(false);
     }
@@ -81,14 +82,15 @@ export default function PolicyReview() {
     if (!id) return;
     setDecisionLoading(true);
     try {
-      await api.patch(`/api/v1/policies/${id}`, {
-        policy_status: status,
-        rejection_reason: status === "rejected" ? rejectionReason : null,
-      });
+      if (status === "approved") {
+        await api.post(`/api/v1/policies/${id}/approve`);
+      } else {
+        await api.post(`/api/v1/policies/${id}/reject`, { rejection_reason: rejectionReason });
+      }
       alert(`Policy ${status} successfully.`);
       navigate("/policy/inbox");
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Failed to submit decision.");
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, "Failed to submit decision."));
     } finally {
       setDecisionLoading(false);
     }

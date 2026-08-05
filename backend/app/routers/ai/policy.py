@@ -20,6 +20,42 @@ class PolicyAnalyzeProxyRequest(BaseModel):
     conversation_id: str | None = None
 
 
+class PolicyConflictProxyRequest(BaseModel):
+    policy_text: str
+    conversation_id: str | None = None
+
+
+class ExecutiveSummaryProxyRequest(BaseModel):
+    query: str
+    conversation_id: str | None = None
+
+
+@router.post("/conflict-detect", summary="Detect conflicts and gaps in a policy document")
+async def ai_policy_conflict_detect(
+    payload: PolicyConflictProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.APPROVE_POLICIES))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    return await forward_to_ai_service(
+        "/policy/conflict-detect",
+        {"policy_text": payload.policy_text, "conversation_id": payload.conversation_id},
+        authorization,
+    )
+
+
+@router.post("/executive-summary", summary="Generate an executive compliance briefing")
+async def ai_policy_executive_summary(
+    payload: ExecutiveSummaryProxyRequest,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.APPROVE_POLICIES))],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
+    return await forward_to_ai_service(
+        "/policy/executive-summary",
+        {"query": payload.query, "conversation_id": payload.conversation_id},
+        authorization,
+    )
+
+
 @router.post("/analyze/{policy_id}", summary="Analyze a policy for conflicts and generate executive summary")
 async def ai_policy_analyze(
     policy_id: str,

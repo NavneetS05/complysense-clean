@@ -1,8 +1,15 @@
-export default function EmptyState({ title, description, actionLabel, onAction }: { title?: string; description?: string; actionLabel?: string; onAction?: () => void }) {
+interface EmptyStateProps {
+  title?: string;
+  description?: React.ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+export default function EmptyState({ title, description, actionLabel, onAction }: EmptyStateProps) {
   return (
-    <div style={{ padding: 20, textAlign: "center" }}>
-      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{title || "No items"}</div>
-      {description && <div style={{ color: "var(--text-secondary)", marginBottom: 12 }}>{description}</div>}
+    <div className="empty-state">
+      <div className="empty-state-title">{title || "No items"}</div>
+      {description && <div className="empty-state-description">{description}</div>}
       {onAction && actionLabel && (
         <button className="btn btn-primary" onClick={onAction}>{actionLabel}</button>
       )}

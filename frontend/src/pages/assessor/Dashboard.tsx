@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { PageShell } from "../PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
+import { getFrameworkColor } from "../../lib/frameworkColors";
 
 type FrameworkReadiness = { framework: string; readiness: number; assessment_count: number };
 type Risk = { title: string; framework: string; severity: string };
@@ -75,7 +76,12 @@ export default function Dashboard() {
               <XAxis dataKey="framework" />
               <YAxis domain={[0, 100]} />
               <Tooltip />
-              <Bar dataKey="readiness" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="readiness" radius={[4, 4, 0, 0]}>
+                {(stats?.framework_readiness ?? []).map((entry, index) => {
+                  const colors = getFrameworkColor(entry.framework);
+                  return <Cell key={`cell-${index}`} fill={colors.text} />;
+                })}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

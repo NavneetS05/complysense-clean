@@ -1,12 +1,12 @@
 // Use: Super Admin — Institution Detail view. Shows 3 stat cards and tabs for Users, Departments, and Audit Logs.
 
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
-import { useToast } from "../../components/shared/Toast";
-import { Users, Building2, BarChart3, ScrollText } from "lucide-react";
+import { useToast } from "../../components/shared/ToastContext";
+import { Users, Building2, BarChart3 } from "lucide-react";
 
 interface Institution {
   institution_id: string;
@@ -58,7 +58,6 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function TenantDetail() {
   const { institution_id } = useParams<{ institution_id: string }>();
-  const navigate = useNavigate();
   const toast = useToast();
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [users, setUsers] = useState<User[]>([]);

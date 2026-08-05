@@ -14,7 +14,9 @@ import { vendorRoutes } from "./VendorRoutes";
 import { policyRoutes } from "./PolicyRoutes";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { useAuthStore, useThemeStore } from "../store/authStore";
-import { clearSessionStorage, refreshSession, roleDashboard } from "../lib/auth";
+import { clearSessionStorage, persistSession, refreshSession, roleDashboard } from "../lib/auth";
+import { DashboardLayout } from "../layouts/DashboardLayout";
+import Profile from "../pages/Profile";
 
 function RootRedirect() {
   const user = useAuthStore((s) => s.user);
@@ -40,6 +42,11 @@ const router = createBrowserRouter([
       deptRoutes,
       vendorRoutes,
       policyRoutes,
+      {
+        path: "profile",
+        element: <DashboardLayout />,
+        children: [{ index: true, element: <Profile /> }],
+      },
     ],
   },
   { path: "*", element: <Navigate to="/login" replace /> },
@@ -61,6 +68,7 @@ export function AppRouter() {
         try {
           const refreshed = await refreshSession();
           setSession(refreshed.access_token, refreshed.user);
+          persistSession(refreshed.user);
         } catch {
           clearSession();
           clearSessionStorage();

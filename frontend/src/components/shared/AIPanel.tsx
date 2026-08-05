@@ -1,7 +1,7 @@
 // Use: AIPanel — right-side drawer for AI-powered results, loading skeletons, empty/not-run states, and error handling.
 
 import { useEffect, useState } from "react";
-import { X, RefreshCw, Bot, Sparkles, AlertCircle } from "lucide-react";
+import { X, RefreshCw, Sparkles, AlertCircle } from "lucide-react";
 
 interface AIPanelProps {
   open: boolean;

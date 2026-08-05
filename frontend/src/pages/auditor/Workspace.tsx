@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
-import ErrorState from "../../components/shared/ErrorState";
 
 type Assessment = {
   assessment_id: string;
@@ -59,7 +58,7 @@ export default function Workspace() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draft, setDraft] = useState({ control_id: "", evidence_id: "", observation_text: "", severity: "observation" });
   const [submitting, setSubmitting] = useState(false);
-  const { data, loading: bulkLoading, error: bulkError, refetch } = useApi(async () => {
+  const { data, error: bulkError } = useApi(async () => {
     const [assessmentsRes, controlsRes, evidenceRes, observationsRes] = await Promise.all([
       api.get("/api/v1/assessments"),
       api.get("/api/v1/controls"),
@@ -125,8 +124,8 @@ export default function Workspace() {
     }
     setSmartLoading(true);
     try {
-      const { data } = await api.post("/api/v1/audit/smart-sample", { assessment_id: selectedAssessmentId });
-      setPriorityEvidenceIds(Array.isArray(data) ? data.map((item: any) => item.evidence_id) : []);
+      const { data } = await api.post("/api/v1/ai/audit/smart-sample", { assessment_id: selectedAssessmentId });
+      setPriorityEvidenceIds(Array.isArray(data) ? data.map((item: { evidence_id: string }) => item.evidence_id) : []);
     } finally {
       setSmartLoading(false);
     }
@@ -135,11 +134,11 @@ export default function Workspace() {
   async function handleDraftObservation() {
     setDraftLoading(true);
     try {
-      const { data } = await api.post("/api/v1/audit/observations/draft", {
+      const { data } = await api.post("/api/v1/ai/audit/draft-observation", {
         control_id: draft.control_id || selectedControl?.control_id,
-        observation_text: draft.observation_text,
+        partial_text: draft.observation_text,
       });
-      setDraft((current) => ({ ...current, observation_text: data.draft }));
+      setDraft((current) => ({ ...current, observation_text: data.response ?? current.observation_text }));
     } finally {
       setDraftLoading(false);
     }

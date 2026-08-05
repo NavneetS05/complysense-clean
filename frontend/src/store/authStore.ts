@@ -32,6 +32,8 @@ export interface Notification {
   type: string;
   title: string;
   message: string;
+  notification_type?: string;
+  related_entity_type?: string;
   is_read: boolean;
   created_at: string;
   related_entity_id?: string;
@@ -65,20 +67,11 @@ interface ThemeState {
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  dark: (() => {
-    try {
-      const saved = localStorage.getItem("cs_dark");
-      if (saved !== null) return saved === "true";
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
-    } catch {
-      return false;
-    }
-  })(),
+  dark: false,
   toggleDark: () => {
     const next = !get().dark;
     set({ dark: next });
     try {
-      localStorage.setItem("cs_dark", String(next));
       document.documentElement.classList.toggle("dark", next);
     } catch { /* */ }
   },

@@ -1,9 +1,10 @@
 // Use: Generates PDF executive briefing reports using AI summaries.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
-import { useToast } from "../../components/shared/Toast";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 import { FileText, Plus, Sparkles, Download, Calendar } from "lucide-react";
 
 interface AuditReport {
@@ -31,7 +32,7 @@ export default function Reports() {
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
 
-  async function fetchReports() {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/api/v1/policies/reports");
@@ -40,11 +41,11 @@ export default function Reports() {
       toast.error("Failed to load reports");
     }
     setLoading(false);
-  }
+  }, [toast]);
 
   useEffect(() => {
     fetchReports();
-  }, []);
+  }, [fetchReports]);
 
   async function handleGenerate() {
     setModalLoading(true);
@@ -57,8 +58,8 @@ export default function Reports() {
       toast.success("Report generated successfully");
       setModalOpen(false);
       fetchReports();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Failed to generate report");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to generate report"));
     }
     setModalLoading(false);
   }

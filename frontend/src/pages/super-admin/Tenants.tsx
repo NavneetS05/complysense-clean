@@ -5,7 +5,8 @@ import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
-import { useToast } from "../../components/shared/Toast";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 import { Plus, Eye, Building2 } from "lucide-react";
 
 interface Institution {
@@ -78,7 +79,7 @@ export default function Tenants() {
       toast.error("Failed to load institutions");
     }
     setLoading(false);
-  }, [search, statusFilter, typeFilter, stateFilter]);
+  }, [search, statusFilter, typeFilter, stateFilter, toast]);
 
   useEffect(() => { fetchInstitutions(); }, [fetchInstitutions]);
 
@@ -103,8 +104,8 @@ export default function Tenants() {
       setShowModal(false);
       setForm(EMPTY_FORM);
       fetchInstitutions();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? "Failed to create institution");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create institution"));
     }
     setModalLoading(false);
   }

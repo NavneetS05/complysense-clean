@@ -48,11 +48,15 @@ class UpdateProfileRequest(BaseModel):
 class UserContext(BaseModel):
     user_id: str
     institution_id: str
+    institution_name: str | None = None
     role_id: str
     role_name: str
     active_role_id: str
     active_role_name: str
     email: EmailStr
+    full_name: str | None = None
+    phone: str | None = None
+    designation: str | None = None
     permissions: list[str]
     session_id: str
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { PageShell } from "../../pages/PageShell";
+import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
 import { CitationChip } from "./CitationChip";
 
@@ -48,7 +48,7 @@ export function RoleChatPage({ title, context, endpoint, placeholder, prompts }:
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <PageShell title={title} context={context} />
+      <PageShell title={title} subtitle={context} />
       <section className="card" style={{ minHeight: 640, display: "grid", gridTemplateRows: "1fr auto", gap: 16 }}>
         <div style={{ overflow: "auto", display: "grid", alignContent: "start", gap: 12 }}>
           {messages.length === 0 ? (

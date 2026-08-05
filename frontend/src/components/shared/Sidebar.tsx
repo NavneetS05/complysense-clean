@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuthStore, useNotificationStore } from "../../store/authStore";
-import { logoutApi, clearSessionStorage, roleDashboard } from "../../lib/auth";
+import { logoutApi, clearSessionStorage } from "../../lib/auth";
 import { useState } from "react";
 import type { RoleName } from "../../types/roles";
 
@@ -126,7 +126,7 @@ export function Sidebar() {
         </div>
         {user.role_name !== "Super Admin" && (
           <div className="sidebar-institution-name">
-            {user.institution_id}
+            {user.institution_name ?? user.institution_id}
           </div>
         )}
       </div>
