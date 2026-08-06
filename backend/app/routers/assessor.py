@@ -33,40 +33,38 @@ async def get_dashboard_stats(
     quarter_start = datetime.utcnow() - timedelta(days=90)
     trend_start = datetime.utcnow() - timedelta(days=180)
 
-    overall_res = await session.execute(
-        text(
-            """
-            select coalesce(round(avg(compliance_percentage)::numeric, 2), 0) as overall
-            from compliance_results
-            where institution_id = :inst_id
-            """
-        ),
-        {"inst_id": inst_id},
-    )
-    overall = float(overall_res.scalar() or 0)
-
     framework_res = await session.execute(
         text(
             """
-            select framework_name,
-                   round(avg(compliance_percentage)::numeric, 2) as readiness,
-                   count(distinct assessment_id) as assessment_count
-            from compliance_results
-            where institution_id = :inst_id
-            group by framework_name
-            order by framework_name asc
+            select ca.framework_name,
+                   count(*) as total_controls,
+                   count(*) filter (where ca.status = 'compliant') as compliant_controls,
+                   count(distinct a.assessment_id) as assessment_count
+            from control_assignments ca
+            left join assessments a on a.framework_name = ca.framework_name and a.institution_id = ca.institution_id
+            where ca.institution_id = :inst_id
+            group by ca.framework_name
+            order by ca.framework_name asc
             """
         ),
         {"inst_id": inst_id},
     )
-    frameworks = [
-        {
+    frameworks = []
+    tot_ctrls = 0
+    comp_ctrls = 0
+    for row in framework_res.mappings().all():
+        tot = int(row["total_controls"] or 0)
+        comp = int(row["compliant_controls"] or 0)
+        tot_ctrls += tot
+        comp_ctrls += comp
+        readiness = round((comp / tot) * 100, 2) if tot > 0 else 0.0
+        frameworks.append({
             "framework": row["framework_name"] or "Unspecified",
-            "readiness": float(row["readiness"] or 0),
+            "readiness": readiness,
             "assessment_count": int(row["assessment_count"] or 0),
-        }
-        for row in framework_res.mappings().all()
-    ]
+        })
+
+    overall = round((comp_ctrls / tot_ctrls) * 100, 2) if tot_ctrls > 0 else 0.0
 
     gaps_res = await session.execute(
         text(

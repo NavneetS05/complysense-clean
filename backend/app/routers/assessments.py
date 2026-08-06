@@ -178,7 +178,7 @@ async def save_assessment_response(
             set response_value = :response_value,
                 score_value = :score_value,
                 answered_by = :answered_by,
-                created_at = now()
+                updated_at = now()
             where response_id = :response_id
             returning response_id
         """

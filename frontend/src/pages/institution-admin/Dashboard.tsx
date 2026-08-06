@@ -314,7 +314,7 @@ export default function AdminDashboard() {
                   <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 8 }}>{ACTION_LABELS[log.action_type] ?? log.action_type}</span>
                 </div>
                 <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                  {new Date(log.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  {new Date(log.created_at.endsWith("Z") || log.created_at.includes("+") ? log.created_at : log.created_at + "Z").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
                 </span>
               </div>
             ))}

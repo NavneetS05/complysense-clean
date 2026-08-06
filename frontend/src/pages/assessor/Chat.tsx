@@ -6,6 +6,8 @@ import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
 import { CitationChip } from "../../components/shared/CitationChip";
 
+import { getApiErrorMessage } from "../../lib/errors";
+
 type Message = { role: "user" | "assistant"; content: string };
 type Conversation = { conversation_id: string; title: string; updated_at?: string };
 type Citation = { framework?: string; source?: string; section?: string; title?: string };
@@ -56,8 +58,8 @@ export default function Chat() {
       setMessages([...nextMessages, { role: "assistant", content: data.response || "No answer returned." }]);
       setCitations(data.citations || []);
       await loadConversations();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reach assessor chat.");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Unable to reach assessor chat. Please try again."));
     } finally {
       setLoading(false);
     }

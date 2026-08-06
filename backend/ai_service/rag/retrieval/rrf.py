@@ -21,7 +21,7 @@ class ReciprocalRankFusion:
         # Helper to generate a unique key for each chunk
         def _get_key(chunk: Dict[str, Any]) -> tuple:
             # We can use text or meta values
-            meta = chunk.get("metadata", {})
+            meta = chunk.get("meta") or chunk.get("metadata") or {}
             return (
                 meta.get("framework", "Unknown"),
                 meta.get("section_id", "Unknown"),

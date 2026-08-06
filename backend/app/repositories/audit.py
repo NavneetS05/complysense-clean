@@ -24,27 +24,26 @@ class AuditLogRepository:
         entity_id: str | None = None,
         action_details: dict[str, Any] | None = None,
         ip_address: str | None = None,
+        mac_address: str | None = None,
     ) -> None:
-        """Insert a row into audit_logs.
+        """Insert a row into audit_logs."""
+        details = action_details or {}
+        if mac_address and "mac_address" not in details:
+            details["mac_address"] = mac_address
 
-        action_type examples (auth domain):
-            login, logout, register, failed_login, user_blocked,
-            password_change, password_reset_requested, refresh_token,
-            account_status_change
-        """
-        details_json = json.dumps(action_details or {})
+        details_json = json.dumps(details)
         await self.session.execute(
             text(
                 """
                 insert into audit_logs (
                     institution_id, user_id, active_role_id,
                     action_type, entity_type, entity_id,
-                    action_details, ip_address
+                    action_details, ip_address, mac_address
                 )
                 values (
                     :institution_id, :user_id, :active_role_id,
                     :action_type, :entity_type, :entity_id,
-                    cast(:action_details as jsonb), :ip_address
+                    cast(:action_details as jsonb), :ip_address, :mac_address
                 )
                 """
             ),
@@ -57,6 +56,7 @@ class AuditLogRepository:
                 "entity_id": entity_id,
                 "action_details": details_json,
                 "ip_address": ip_address,
+                "mac_address": mac_address,
             },
         )
 
@@ -74,7 +74,7 @@ class AuditLogRepository:
                 select al.audit_log_id, al.user_id, u.full_name as user_name,
                        al.active_role_id, r.role_name,
                        al.action_type, al.entity_type, al.entity_id,
-                       al.action_details, al.ip_address, al.created_at
+                       al.action_details, al.ip_address, al.mac_address, al.created_at
                   from audit_logs al
                   left join users u on u.user_id = al.user_id
                   left join roles r on r.role_id = al.active_role_id
@@ -99,7 +99,7 @@ class AuditLogRepository:
             select al.audit_log_id, al.institution_id, i.institution_name,
                    al.user_id, u.full_name as user_name,
                    al.action_type, al.entity_type, al.entity_id,
-                   al.action_details, al.ip_address, al.created_at
+                   al.action_details, al.ip_address, al.mac_address, al.created_at
               from audit_logs al
               left join institutions i on i.institution_id = al.institution_id
               left join users u on u.user_id = al.user_id

@@ -71,13 +71,23 @@ def _extract_dpdp_compliant(result: dict[str, Any]) -> bool | None:
 @router.post("/chat", summary="Vendor reviewer AI Q&A")
 async def ai_vendor_chat(
     payload: VendorChatProxyRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_VENDORS))],
+    session: AsyncSession = Depends(get_db_session),
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    from app.routers.ai.operational_context import build_institution_operational_context
+
     conversation_id = payload.conversation_id or str(uuid4())
+    op_context = await build_institution_operational_context(session, user_ctx.institution_id)
+
+    full_query = (
+        f"LIVE INSTITUTION DATABASE CONTEXT:\n{op_context}\n\n"
+        f"USER QUERY:\n{payload.query}"
+    ) if op_context else payload.query
+
     result = await forward_to_ai_service(
         "/vendor/chat",
-        {"query": payload.query, "conversation_id": conversation_id},
+        {"query": full_query, "conversation_id": conversation_id},
         authorization,
     )
     result["conversation_id"] = conversation_id

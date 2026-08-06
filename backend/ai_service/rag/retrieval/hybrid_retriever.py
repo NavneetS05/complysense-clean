@@ -103,8 +103,9 @@ class HybridRetriever:
         sparse_results = self.bm25_store.search(query_text, top_k=20)
 
         # ── Role-based access filter ───────────────────────────────────────────
-        permitted_frameworks = ROLE_FRAMEWORKS.get(role, [])
+        # Normalize role key (e.g. "Compliance Officer" -> "compliance_officer")
         role_key = role.lower().replace(" ", "_")
+        permitted_frameworks = ROLE_FRAMEWORKS.get(role_key) or ROLE_FRAMEWORKS.get(role, [])
 
         def _is_permitted(chunk: Dict[str, Any]) -> bool:
             meta = chunk.get("meta", chunk.get("metadata", {}))
@@ -116,17 +117,20 @@ class HybridRetriever:
                 return chunk_inst_id is not None and str(chunk_inst_id) == str(institution_id)
 
             # Framework docs: enforce role access matrix
-            fw = meta.get("framework", "")
-            if fw not in permitted_frameworks:
-                return False
+            fw = str(meta.get("framework") or "").strip().upper()
+            if not fw:
+                return True
 
-            # Section-level applies_to override
-            applies_to = meta.get("applies_to", [])
-            if applies_to:
-                norm = [r.lower().replace(" ", "_") for r in applies_to]
-                return role_key in norm
+            if not permitted_frameworks:
+                return True
 
-            return True
+            for p in permitted_frameworks:
+                p_upper = p.strip().upper()
+                p_token = p_upper.split()[0]
+                if p_upper in fw or fw in p_upper or p_token in fw:
+                    return True
+
+            return False
 
         filtered_dense = [c for c in dense_results if _is_permitted(c)]
         filtered_sparse = [c for c in sparse_results if _is_permitted(c)]

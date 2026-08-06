@@ -1,6 +1,6 @@
 // Use: Retrieves and displays user-targeted system notifications.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Bell, CheckCircle2 } from "lucide-react";
@@ -42,6 +42,7 @@ function getNotificationPath(notification: Notification, role: string): string |
     evidence_rejected: `${base}/evidence`,
     incident_logged: "/security/incidents",
     policy_pending: "/policy/inbox",
+    control_assigned: `${base}/controls`,
     control_overdue: "/compliance/controls",
     vendor_risk_flagged: "/vendor/dashboard",
   };
@@ -64,7 +65,7 @@ export default function Notifications() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [marking, setMarking] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -78,11 +79,11 @@ export default function Notifications() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [setNotifications, setUnreadCount, unreadOnly]);
 
   useEffect(() => {
     void load();
-  }, [unreadOnly]);
+  }, [load]);
 
   const unreadCount = useMemo(() => items.filter((item) => !item.is_read).length, [items]);
 

@@ -10,6 +10,7 @@ Base prefix for main API: `/api/v1`.
 | POST | `/auth/login` | `auth.py` | Public | Implemented |
 | POST | `/auth/logout` | `auth.py` | Bearer/session | Implemented |
 | POST | `/auth/refresh` | `auth.py` | HttpOnly refresh cookie | Implemented |
+| POST | `/auth/change-password` | `auth.py` | Bearer/session | Implemented |
 | GET | `/auth/me` | `auth.py` | Bearer/session | Implemented |
 | PATCH | `/auth/me` | `auth.py` | Bearer/session | Implemented |
 | POST | `/auth/forgot-password` | `auth.py` | Public | Implemented |
@@ -22,15 +23,15 @@ Base prefix for main API: `/api/v1`.
 | Method | Route | Status |
 |---|---|---|
 | GET | `/rbac/roles` | Implemented |
-| GET | `/rbac/matrix` | Partially Implemented |
+| GET | `/rbac/matrix` | Implemented |
 | GET | `/modules` | Implemented |
 
 ## Core Operational APIs
 
 | Router | Main routes | Status |
 |---|---|---|
-| `institutions.py` | `/institutions...` | Implemented/Partially Implemented |
-| `users.py` | `/users`, `/users/invite`, role/status/reset paths | Partially Implemented |
+| `institutions.py` | `/institutions`, `/status`, `/stats`, `DELETE /institutions/{id}` | Implemented |
+| `users.py` | `/users`, `/users/invite`, `POST /users/{id}/reset-password`, role/status paths | Implemented |
 | `departments.py` | `/departments...` | Implemented |
 | `controls.py` | `/controls`, detail, status, notes | Implemented |
 | `assessments.py` | `/assessments`, responses, submit | Implemented; submit is idempotent for derived result/gap rows |
@@ -41,9 +42,9 @@ Base prefix for main API: `/api/v1`.
 | `vendors.py` | `/vendors`, detail, create, update, risk-assessment upsert | Implemented |
 | `tasks.py` | `/tasks`, detail, create, update, submit | Implemented |
 | `policies.py` | `/policies`, content, approve/reject, reports wrapper | Implemented for approval lifecycle and redraft versioning |
-| `audit.py` | `/audit/recent`, `/logs`, observations, reports | Implemented for audit records; report document engine remains later phase |
+| `audit.py` | `/audit/recent`, `/logs` (with live MAC tracking), observations, reports | Implemented |
 | `calendar.py` | `/calendar...` | Implemented |
-| `notifications.py` | `/notifications` | Not Implemented |
+| `notifications.py` | `/notifications`, `/read`, `/read-all` | Implemented |
 
 ## AI Proxy APIs
 

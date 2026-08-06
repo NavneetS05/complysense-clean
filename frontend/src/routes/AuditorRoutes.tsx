@@ -8,6 +8,7 @@ import Observations from "../pages/auditor/Observations";
 import ReportBuilder from "../pages/auditor/ReportBuilder";
 import ReportView from "../pages/auditor/ReportView";
 import Chat from "../pages/auditor/Chat";
+import Notifications from "../pages/compliance/Notifications";
 
 export const auditorRoutes: RouteObject = {
   path: "/auditor",
@@ -21,6 +22,7 @@ export const auditorRoutes: RouteObject = {
     { path: "observations", element: <Observations /> },
     { path: "reports", element: <ReportBuilder /> },
     { path: "reports/:id", element: <ReportView /> },
-    { path: "chat", element: <Chat /> }
+    { path: "chat", element: <Chat /> },
+    { path: "notifications", element: <Notifications /> }
   ]
 };

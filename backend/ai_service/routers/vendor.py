@@ -69,7 +69,7 @@ async def analyze_contract(
 @router.post("/chat", summary="Vendor Q&A")
 async def vendor_chat(
     payload: VendorChatRequest,
-    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_VENDORS))],
 ) -> dict[str, Any]:
     history = []
     if payload.conversation_id:
@@ -87,6 +87,7 @@ async def vendor_chat(
         conversation_history=history,
         institution_id=str(user_ctx.institution_id),
         user_id=str(user_ctx.user_id),
+        user_role=str(user_ctx.active_role_name),
         endpoint_name="chat",
     )
 

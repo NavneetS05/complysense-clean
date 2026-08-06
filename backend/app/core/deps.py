@@ -37,6 +37,7 @@ async def get_current_user(
     Raises UnauthorizedError (HTTP 401) on any failure.
     """
     if credentials is None:
+        # No credentials provided
         raise UnauthorizedError()
     try:
         claims = decode_token(credentials.credentials)

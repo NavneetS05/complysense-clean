@@ -15,6 +15,7 @@ class AssessorAgent(BaseAgent):
         conversation_history: List[Dict[str, str]],
         institution_id: str,
         user_id: str = "",
+        user_role: str = "",
     ) -> Dict[str, Any]:
         """
         General regulatory Q&A from framework knowledge base.
@@ -24,6 +25,7 @@ class AssessorAgent(BaseAgent):
             conversation_history=conversation_history,
             institution_id=institution_id,
             user_id=user_id,
+            user_role=user_role,
             task_prompt=ASSESSOR_TASK_PROMPT,
             endpoint_name="chat",
         )

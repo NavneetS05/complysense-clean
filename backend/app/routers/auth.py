@@ -12,6 +12,8 @@ from app.core.deps import get_current_user
 from app.core.exceptions import UnauthorizedError
 from app.database import get_db_session
 from app.schemas.auth import (
+    AssumeRoleRequest,
+    ChangePasswordRequest,
     ExitRoleAssumptionResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
@@ -195,6 +197,26 @@ async def update_me(
 
 
 @router.post(
+    "/change-password",
+    response_model=MessageResponse,
+    summary="Change password for current logged in user",
+)
+async def change_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    user: Annotated[UserContext, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MessageResponse:
+    """Allow any authenticated user to change their password."""
+    return await AuthService(session).change_password(
+        user=user,
+        current_pass=payload.current_password,
+        new_pass=payload.new_password,
+        request=request,
+    )
+
+
+@router.post(
     "/forgot-password",
     response_model=ForgotPasswordResponse,
     summary="Request a password reset link",
@@ -253,6 +275,28 @@ async def validate_reset_token(
     whether to show the reset form or an "invalid link" error state.
     """
     return await AuthService(session).validate_reset_token(token)
+
+
+@router.post(
+    "/assume-role",
+    response_model=ExitRoleAssumptionResponse,
+    summary="Temporarily assume another role for review purposes",
+)
+async def assume_role(
+    payload: AssumeRoleRequest,
+    request: Request,
+    user: Annotated[UserContext, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ExitRoleAssumptionResponse:
+    """Allow a Super Admin or Institution Admin to temporarily assume another role.
+
+    The session's ``active_role_id`` is updated to the target role so subsequent
+    requests use the assumed role's permissions.  A fresh ``UserContext`` is
+    returned so the frontend can re-hydrate its auth store immediately.
+
+    Use ``POST /exit-role-assumption`` to revert back to the primary role.
+    """
+    return await AuthService(session).assume_role(user, payload, request)
 
 
 @router.post(

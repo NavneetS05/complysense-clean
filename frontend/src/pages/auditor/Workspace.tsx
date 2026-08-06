@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
 import Loading from "../../components/shared/Loading";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 
 type Assessment = {
   assessment_id: string;
@@ -46,6 +48,7 @@ type ObservationItem = {
 };
 
 export default function Workspace() {
+  const toast = useToast();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [controls, setControls] = useState<ControlItem[]>([]);
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
@@ -125,7 +128,23 @@ export default function Workspace() {
     setSmartLoading(true);
     try {
       const { data } = await api.post("/api/v1/ai/audit/smart-sample", { assessment_id: selectedAssessmentId });
-      setPriorityEvidenceIds(Array.isArray(data) ? data.map((item: { evidence_id: string }) => item.evidence_id) : []);
+      const ids: string[] = Array.isArray(data)
+        ? data.map((item: { evidence_id: string }) => item.evidence_id)
+        : Array.isArray(data.priority_evidence_ids)
+        ? data.priority_evidence_ids
+        : Array.isArray(data.response_json)
+        ? data.response_json.map((item: any) => typeof item === "string" ? item : item.evidence_id || item.id).filter(Boolean)
+        : [];
+      setPriorityEvidenceIds(ids);
+      toast.success(`Smart sample calculated — ${ids.length} items highlighted.`);
+
+      // Auto-select the first control containing a priority evidence file
+      const firstPriorityEvidence = evidenceItems.find((ev) => ids.includes(ev.evidence_id));
+      if (firstPriorityEvidence) {
+        setSelectedControlId(firstPriorityEvidence.control_id);
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to generate smart sample"));
     } finally {
       setSmartLoading(false);
     }
@@ -139,6 +158,8 @@ export default function Workspace() {
         partial_text: draft.observation_text,
       });
       setDraft((current) => ({ ...current, observation_text: data.response ?? current.observation_text }));
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to draft observation"));
     } finally {
       setDraftLoading(false);
     }
@@ -171,6 +192,8 @@ export default function Workspace() {
       setObservations((current) => [fresh, ...current]);
       setDraft({ control_id: body.control_id, evidence_id: "", observation_text: "", severity: body.severity });
       setPriorityEvidenceIds((current) => current);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add observation"));
     } finally {
       setSubmitting(false);
     }
@@ -192,32 +215,60 @@ export default function Workspace() {
                 </option>
               ))}
             </select>
-            <button onClick={handleSmartSample} disabled={smartLoading || !selectedAssessmentId} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #f59e0b", background: "#fffbeb", color: "#92400e", cursor: smartLoading ? "wait" : "pointer" }}>
+            <button onClick={handleSmartSample} disabled={smartLoading || !selectedAssessmentId} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #f59e0b", background: "#fffbeb", color: "#92400e", cursor: smartLoading ? "wait" : "pointer", fontWeight: 600 }}>
               {smartLoading ? "Analyzing risk..." : "AI: Smart Sample"}
             </button>
           </div>
         </div>
         {!loading && selectedAssessmentId && (
-          <div style={{ marginTop: 10, color: "#334155", fontSize: 13 }}>
-            {controls.length} controls • {evidenceItems.length} evidence items • {observations.length} observations
+          <div style={{ marginTop: 10, color: "#334155", fontSize: 13, display: "flex", alignItems: "center", gap: 12 }}>
+            <span>{controls.length} controls • {evidenceItems.length} evidence items • {observations.length} observations</span>
+            {priorityEvidenceIds.length > 0 && (
+              <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #f59e0b", padding: "2px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
+                ★ {priorityEvidenceIds.length} Priority Sampled Items Highlighted
+              </span>
+            )}
           </div>
         )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 28%) minmax(320px, 46%) minmax(280px, 26%)", gap: 12, padding: 16, flex: 1, minHeight: 0 }}>
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, background: "white", display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ padding: 12, borderBottom: "1px solid #e2e8f0", fontWeight: 700 }}>Controls ({controls.length})</div>
+          <div style={{ padding: 12, borderBottom: "1px solid #e2e8f0", fontWeight: 700, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Controls ({controls.length})</span>
+          </div>
           <div style={{ padding: 12, overflowY: "auto" }}>
-            {loading ? <Loading /> : controls.map((control) => (
-              <button key={control.control_id} onClick={() => { setSelectedControlId(control.control_id); setDraft((current) => ({ ...current, control_id: control.control_id })); }} style={{ width: "100%", textAlign: "left", border: selectedControl?.control_id === control.control_id ? "1px solid #2563eb" : "1px solid #e2e8f0", borderRadius: 10, padding: 10, marginBottom: 8, background: selectedControl?.control_id === control.control_id ? "#eff6ff" : "white", cursor: "pointer" }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{control.control_id}</div>
-                <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{control.control_title || control.title || "Untitled control"}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b", marginTop: 6 }}>
-                  <span>{control.framework_name || "Framework"}</span>
-                  <span>{selectedEvidence.filter((item) => item.control_id === control.control_id).length} files</span>
-                </div>
-              </button>
-            ))}
+            {loading ? <Loading /> : controls.map((control) => {
+              const controlFiles = evidenceItems.filter((item) => item.control_id === control.control_id);
+              const priorityCount = controlFiles.filter((item) => priorityEvidenceIds.includes(item.evidence_id)).length;
+              return (
+                <button
+                  key={control.control_id}
+                  onClick={() => { setSelectedControlId(control.control_id); setDraft((current) => ({ ...current, control_id: control.control_id })); }}
+                  style={{
+                    width: "100%", textAlign: "left",
+                    border: selectedControl?.control_id === control.control_id ? "2px solid #2563eb" : priorityCount > 0 ? "1px solid #f59e0b" : "1px solid #e2e8f0",
+                    borderRadius: 10, padding: 10, marginBottom: 8,
+                    background: selectedControl?.control_id === control.control_id ? "#eff6ff" : priorityCount > 0 ? "#fffbeb" : "white",
+                    cursor: "pointer", position: "relative",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{control.control_id}</div>
+                    {priorityCount > 0 && (
+                      <span style={{ background: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 700 }}>
+                        ★ {priorityCount} Sampled
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{control.control_title || control.title || "Untitled control"}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b", marginTop: 6 }}>
+                    <span>{control.framework_name || "Framework"}</span>
+                    <span>{controlFiles.length} files</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -231,10 +282,10 @@ export default function Workspace() {
                 <div style={{ marginBottom: 12, color: "#475569", fontSize: 14 }}>{selectedControl.description || "No control description available yet."}</div>
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>Evidence ({selectedEvidence.length})</div>
                 {selectedEvidence.length === 0 ? <div style={{ border: "1px dashed #f59e0b", borderRadius: 10, padding: 12, background: "#fffbeb", color: "#92400e" }}>No evidence uploaded for this control.</div> : selectedEvidence.map((item) => (
-                  <div key={item.evidence_id} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 10, marginBottom: 10, background: priorityEvidenceIds.includes(item.evidence_id) ? "#fffbeb" : "#fff" }}>
+                  <div key={item.evidence_id} style={{ border: priorityEvidenceIds.includes(item.evidence_id) ? "2px solid #f59e0b" : "1px solid #e2e8f0", borderRadius: 10, padding: 10, marginBottom: 10, background: priorityEvidenceIds.includes(item.evidence_id) ? "#fffbeb" : "#fff" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                       <strong>{item.file_name || "Evidence file"}</strong>
-                      {priorityEvidenceIds.includes(item.evidence_id) ? <span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 999, fontSize: 12 }}>★ Priority</span> : null}
+                      {priorityEvidenceIds.includes(item.evidence_id) ? <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #f59e0b", padding: "2px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 }}>★ Priority Sample</span> : null}
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{item.description || "No description provided."}</div>
                     <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Status: {item.approval_status || "pending"}</div>

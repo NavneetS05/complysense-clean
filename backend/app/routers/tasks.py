@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
+from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -137,10 +138,22 @@ async def create_task(
             "created_by": user_ctx.user_id,
         },
     )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create task")
+
+    if payload.assigned_to:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(payload.assigned_to),
+            title="New mitigation task assigned",
+            message=f"You have been assigned the task '{payload.task_title}'.",
+            notification_type="task_assigned",
+            related_entity_type="task",
+            related_entity_id=str(row["task_id"]),
+        )
+
+    await session.commit()
     return {
         "task_id": str(row["task_id"]),
         "task_title": row["task_title"],
@@ -167,12 +180,24 @@ async def update_task(
             values[field] = value
     if not updates:
         raise HTTPException(status_code=400, detail="No update values provided")
-    query = f"update mitigation_tasks set {', '.join(updates)} where task_id = :task_id and institution_id = :inst_id returning task_id"
+    query = f"update mitigation_tasks set {', '.join(updates)}, updated_at = now() where task_id = :task_id and institution_id = :inst_id returning task_id"
     res = await session.execute(text(query), values)
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    if payload.assigned_to:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(payload.assigned_to),
+            title="Mitigation task reassigned",
+            message="A mitigation task has been assigned to you.",
+            notification_type="task_assigned",
+            related_entity_type="task",
+            related_entity_id=str(task_id),
+        )
+
+    await session.commit()
     return {"task_id": str(row["task_id"]), "updated": True}
 
 
@@ -183,7 +208,9 @@ async def submit_task(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
     task_check = await session.execute(
-        text("select assignment_id from mitigation_tasks where task_id = :task_id and institution_id = :inst_id"),
+        text(
+            "select assignment_id, assigned_to, task_title from mitigation_tasks where task_id = :task_id and institution_id = :inst_id"
+        ),
         {"task_id": task_id, "inst_id": user_ctx.institution_id},
     )
     task_row = task_check.mappings().first()
@@ -212,8 +239,20 @@ async def submit_task(
             ),
             {"assignment_id": task_row["assignment_id"], "inst_id": user_ctx.institution_id},
         )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to submit task")
+
+    if task_row["assigned_to"]:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(task_row["assigned_to"]),
+            title="Mitigation task submitted",
+            message=f"The task '{task_row['task_title']}' has been submitted for review.",
+            notification_type="task_assigned",
+            related_entity_type="task",
+            related_entity_id=str(task_id),
+        )
+
+    await session.commit()
     return {"task_id": str(row["task_id"]), "task_status": row["task_status"]}

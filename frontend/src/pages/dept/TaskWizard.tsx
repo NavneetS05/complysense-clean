@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Info, CheckCircle2, ArrowLeft, Send } from "lucide-react";
+import { Info, ArrowLeft, Send } from "lucide-react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import Loading from "../../components/shared/Loading";

@@ -6,6 +6,7 @@ import { RoleRoute } from "./RoleRoute";
 import Inbox from "../pages/policy/Inbox";
 import PolicyReview from "../pages/policy/PolicyReview";
 import History from "../pages/policy/History";
+import Notifications from "../pages/compliance/Notifications";
 
 export const policyRoutes: RouteObject = {
   path: "/policy",
@@ -17,6 +18,7 @@ export const policyRoutes: RouteObject = {
   children: [
     { path: "inbox", element: <Inbox /> },
     { path: ":id/review", element: <PolicyReview /> },
-    { path: "history", element: <History /> }
+    { path: "history", element: <History /> },
+    { path: "notifications", element: <Notifications /> }
   ]
 };

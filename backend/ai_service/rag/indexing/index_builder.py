@@ -195,7 +195,7 @@ class IndexBuilder:
                     "source_file": filename,
                     "document_name": filename,
                     "institution_id": str(doc.get("institution_id", "")),
-                    "uploaded_by_role": doc.get("uploaded_by_role", "compliance_officer"),
+                    "uploaded_by_role": doc.get("uploaded_by_role") or doc_meta.get("uploaded_by_role") or "unknown",
                 }
 
                 doc_chunks = chunker.split_document(content, metadata)

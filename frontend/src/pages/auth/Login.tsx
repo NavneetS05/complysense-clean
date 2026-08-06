@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import { login, persistSession, roleDashboard } from "../../lib/auth";
+import { login, roleDashboard } from "../../lib/auth";
 
 export default function Login() {
   const navigate = useNavigate();

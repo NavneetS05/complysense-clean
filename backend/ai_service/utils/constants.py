@@ -7,7 +7,7 @@ EMBEDDINGS_MODEL = "BAAI/bge-m3"
 EMBEDDINGS_DIMENSIONS = 1024      # bge-m3 output dimensionality
 
 # --- LLM Model (Google Gemini, free tier available) ---
-DEFAULT_LLM_MODEL = "gemini-2.5-flash"
+DEFAULT_LLM_MODEL = "gemini-2.5-flash-lite"
 
 # --- Retrieval Thresholds ---
 RRF_K = 60                        # RRF rank fusion constant
@@ -30,8 +30,7 @@ HISTORY_TURNS_RETRIEVAL_HEAVY = 4
 HISTORY_TURNS_SINGLE_SHOT = 0
 
 # --- Model Routing ---
-# All tasks use gemini-2.5-flash (single model, no paid tier needed)
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 # --- Role → Permitted Frameworks ---
 ROLE_FRAMEWORKS: dict[str, list[str]] = {
@@ -40,12 +39,18 @@ ROLE_FRAMEWORKS: dict[str, list[str]] = {
         "UGC Guidelines", "NAAC Criteria 4 & 6",
     ],
     "it_security": ["CERT-In 2022", "DPDP Act 2023", "ISO 27001:2022", "NIST CSF 2.0"],
+    "it_security_officer": ["CERT-In 2022", "DPDP Act 2023", "ISO 27001:2022", "NIST CSF 2.0"],
     "auditor": ["ISO 27001:2022", "NIST CSF 2.0", "NAAC Criteria 4 & 6", "UGC Guidelines"],
     "dept_reviewer": ["UGC Guidelines", "NAAC Criteria 4 & 6"],
+    "department_reviewer": ["UGC Guidelines", "NAAC Criteria 4 & 6"],
     "vendor_reviewer": ["DPDP Act 2023", "ISO 27001:2022"],
     "policy_approver": ["DPDP Act 2023", "ISO 27001:2022", "UGC Guidelines"],
     "institution_admin": ["DPDP Act 2023", "NAAC Criteria 4 & 6", "UGC Guidelines"],
     "read_only_assessor": [
+        "DPDP Act 2023", "ISO 27001:2022", "NIST CSF 2.0",
+        "CERT-In 2022", "UGC Guidelines", "NAAC Criteria 4 & 6",
+    ],
+    "read-only_assessor": [
         "DPDP Act 2023", "ISO 27001:2022", "NIST CSF 2.0",
         "CERT-In 2022", "UGC Guidelines", "NAAC Criteria 4 & 6",
     ],

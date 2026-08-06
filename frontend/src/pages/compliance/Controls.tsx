@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, Filter, Kanban as KanbanIcon, ArrowRight } from "lucide-react";
+import { Search, X, Filter, ArrowRight } from "lucide-react";
 import { api } from "../../lib/api";
 import { useApi } from "../../hooks/useApi";
 import { PageShell } from "../../components/shared/PageShell";

@@ -27,8 +27,8 @@ class TokenCounter:
                 return len(self.encoding.encode(text))
             except Exception:
                 pass
-        # Fallback to word-based estimate (approx 4 chars per token or 0.75 words per token)
-        return len(text.split())
+        # Fallback to word-based estimate (approx 1.33 tokens per word)
+        return int(len(text.split()) * 1.33)
 
     def count_messages_tokens(self, messages: List[Dict[str, str]]) -> int:
         """

@@ -129,12 +129,21 @@ async def create_department(
             },
         )
         row = res.mappings().first()
-        await session.commit()
-        if not row:
-            raise HTTPException(status_code=500, detail="Failed to insert department")
-        
         d = dict(row)
-        d["department_id"] = str(d["department_id"])
+        dept_id = str(d["department_id"])
+        d["department_id"] = dept_id
+
+        from app.repositories.audit import AuditLogRepository
+        await AuditLogRepository(session).write(
+            institution_id=user_ctx.institution_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="department_created",
+            entity_type="department",
+            entity_id=dept_id,
+            action_details={"department_name": payload.department_name},
+        )
+        await session.commit()
         return d
     except Exception as exc:
         await session.rollback()
@@ -211,7 +220,7 @@ async def update_department(
             )
             reviewer_row = reviewer_email_row.mappings().first()
             if reviewer_row:
-                MailService().send_message(
+                await MailService().send_message(
                     to_email=str(reviewer_row["email"]),
                     subject="ComplySense — You’ve been assigned as a department reviewer",
                     template_key="workflow",

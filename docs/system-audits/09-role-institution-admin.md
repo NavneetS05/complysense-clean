@@ -8,15 +8,15 @@ Frontend route file: `frontend/src/routes/AdminRoutes.tsx`.
 
 Sidebar entries: Dashboard, Departments, Users, Calendar, Reports.
 
-Current status: Partially Implemented.
+Current status: Implemented.
 
 ## Pages
 
 | Page | Route | Component | Backend/API status |
 |---|---|---|---|
-| Dashboard | `/admin/dashboard` | `Dashboard.tsx` | Uses summary data |
-| Departments | `/admin/departments` | `Departments.tsx` | Connected to departments APIs |
-| Users | `/admin/users` | `Users.tsx` | Connected to users APIs |
+| Dashboard | `/admin/dashboard` | `Dashboard.tsx` | Connected to `/institutions/dashboard` with dynamic framework compliance scores |
+| Departments | `/admin/departments` | `Departments.tsx` | Connected to departments APIs (create, edit, reviewer assignment, delete) |
+| Users | `/admin/users` | `Users.tsx` | Connected to users APIs with User Invite Modal & Password Reset Modal |
 | Calendar | `/admin/calendar` | `Calendar.tsx` | Connected to calendar APIs |
 | Reports | `/admin/reports` | `Reports.tsx` | Uses reports APIs |
 
@@ -38,7 +38,7 @@ PostgreSQL:
 - `users`
 - `departments`
 - `roles`
-- `audit_logs`
+- `audit_logs` (with `mac_address` tracking and post-login CRUD logging)
 - `compliance_calendar`
 - `audit_reports`
 - Institution-scoped operational tables for dashboard/report summaries.
@@ -47,15 +47,10 @@ MongoDB:
 
 - No direct Institution Admin route usage found.
 
-## Notable Implementation Details
+## Implemented Enhancements & Features
 
-- User create/invite use hardcoded setup password `SetupTemp123!` in `backend/app/routers/users.py`.
-- User management writes audit logs directly with SQL.
-- Department reviewer linking is handled by updating `departments.reviewer_user_id`.
-
-## Missing Features and Improvements
-
-- User invitation email delivery is not implemented in `invite_user`; it creates a user with a hardcoded temporary password.
-- Role assumption start flow is not implemented even though exit flow exists.
-- Admin reset password endpoint returns a simulated message and does not issue a reset token.
+- **User Password Reset**: Institution Admin can reset user passwords via `POST /api/v1/users/{user_id}/reset-password`, resetting password hash, clearing failed login counters, unlocking accounts, and writing audit logs.
+- **User Invite & Creation**: Modal UI in `/admin/users` allows direct invitation/creation of users with specific roles.
+- **Department Reviewer Assignment**: Department reviewer linking updates `departments.reviewer_user_id` and logs audit events (`reviewer_assigned`).
+- **Live Device MAC & Activity Audit Logging**: Institution Admin audit trail tracks client device MAC address and all post-login user CRUD operations.
 

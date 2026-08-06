@@ -111,46 +111,57 @@ export function AIPanel({
               </div>
             </div>
           ) : !hasResult ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                textAlign: "center",
-                padding: "32px 16px",
-                gap: 16,
-              }}
-            >
+            children ? (
+              // Drawer has input form as children — show it directly (e.g. Regulatory Change Analysis)
+              <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ textAlign: "center", paddingBottom: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{emptyTitle}</div>
+                  <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>{emptyDescription}</div>
+                </div>
+                {children}
+              </div>
+            ) : (
               <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  background: "var(--primary-bg)",
-                  color: "var(--primary)",
-                  borderRadius: "50%",
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
+                  height: "100%",
+                  textAlign: "center",
+                  padding: "32px 16px",
+                  gap: 16,
                 }}
               >
-                <Sparkles size={24} />
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>{emptyTitle}</div>
-              <div style={{ fontSize: 13, color: "var(--muted)", maxWidth: 280 }}>
-                {emptyDescription}
-              </div>
-              {onEmptyAction && (
-                <button
-                  className="btn btn-primary"
-                  onClick={onEmptyAction}
-                  style={{ marginTop: 8 }}
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    background: "var(--primary-bg)",
+                    color: "var(--primary)",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  {emptyActionLabel}
-                </button>
-              )}
-            </div>
+                  <Sparkles size={24} />
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>{emptyTitle}</div>
+                <div style={{ fontSize: 13, color: "var(--muted)", maxWidth: 280 }}>
+                  {emptyDescription}
+                </div>
+                {onEmptyAction && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={onEmptyAction}
+                    style={{ marginTop: 8 }}
+                  >
+                    {emptyActionLabel}
+                  </button>
+                )}
+              </div>
+            )
           ) : (
             children
           )}

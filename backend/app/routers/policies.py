@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.permissions import require_permission
 from app.database import get_db_session
-from app.domain.rbac import PermissionKey
+from app.domain.rbac import PermissionKey, RoleName
 from app.repositories.audit import AuditLogRepository
+from app.repositories.notification import NotificationRepository
 from app.routers.audit import create_audit_report_entry
 from app.schemas.auth import UserContext
 from app.services.mail_service import MailService
@@ -152,6 +153,16 @@ async def create_policy(
             entity_id=str(row["policy_id"]),
             action_details={"policy_name": payload.policy_name, "parent_policy_id": parent_policy_id},
         )
+        if payload.policy_status == PolicyStatus.PENDING_APPROVAL:
+            await NotificationRepository(session).create_for_role(
+                institution_id=str(user_ctx.institution_id),
+                role_name=RoleName.POLICY_APPROVER.value,
+                title="Policy pending approval",
+                message=f"A new policy draft '{payload.policy_name}' is awaiting your review.",
+                notification_type="policy_pending",
+                related_entity_type="policy",
+                related_entity_id=str(row["policy_id"]),
+            )
     await session.commit()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create policy")
@@ -294,6 +305,28 @@ async def update_policy(
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Policy not found")
+
+    if payload.policy_status == PolicyStatus.PENDING_APPROVAL:
+        await NotificationRepository(session).create_for_role(
+            institution_id=str(user_ctx.institution_id),
+            role_name=RoleName.POLICY_APPROVER.value,
+            title="Policy pending approval",
+            message="A policy draft has been submitted for approval.",
+            notification_type="policy_pending",
+            related_entity_type="policy",
+            related_entity_id=str(policy_id),
+        )
+    if payload.submitted_to:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(payload.submitted_to),
+            title="Policy submitted for review",
+            message="A policy draft has been routed to you for review.",
+            notification_type="policy_pending",
+            related_entity_type="policy",
+            related_entity_id=str(policy_id),
+        )
+
     await AuditLogRepository(session).write(
         institution_id=user_ctx.institution_id,
         user_id=user_ctx.user_id,
@@ -332,6 +365,23 @@ async def approve_policy(
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Policy not found")
+
+    policy_creator_res = await session.execute(
+        text("select generated_by from generated_policies where policy_id = :policy_id and institution_id = :inst_id"),
+        {"policy_id": policy_id, "inst_id": user_ctx.institution_id},
+    )
+    policy_creator = policy_creator_res.mappings().first()
+    if policy_creator and policy_creator["generated_by"]:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(policy_creator["generated_by"]),
+            title="Policy approved",
+            message="Your policy draft was approved.",
+            notification_type="policy_pending",
+            related_entity_type="policy",
+            related_entity_id=str(policy_id),
+        )
+
     await AuditLogRepository(session).write(
         institution_id=user_ctx.institution_id,
         user_id=user_ctx.user_id,
@@ -372,6 +422,25 @@ async def reject_policy(
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Policy not found")
+
+    policy_creator_res = await session.execute(
+        text("select generated_by from generated_policies where policy_id = :policy_id and institution_id = :inst_id"),
+        {"policy_id": policy_id, "inst_id": user_ctx.institution_id},
+    )
+    policy_creator = policy_creator_res.mappings().first()
+    if policy_creator and policy_creator["generated_by"]:
+        await NotificationRepository(session).create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(policy_creator["generated_by"]),
+            title="Policy rejected",
+            message="Your policy draft was rejected."
+            if not payload.rejection_reason
+            else f"Your policy draft was rejected: {payload.rejection_reason}",
+            notification_type="policy_pending",
+            related_entity_type="policy",
+            related_entity_id=str(policy_id),
+        )
+
     await AuditLogRepository(session).write(
         institution_id=user_ctx.institution_id,
         user_id=user_ctx.user_id,
@@ -392,6 +461,9 @@ async def save_policy_content(
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.DRAFT_POLICIES))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
+    if payload.policy_content is None:
+        raise HTTPException(status_code=400, detail="policy_content is required and cannot be null")
+
     query = """
         update generated_policies
         set policy_content = :policy_content, updated_at = now()
@@ -432,7 +504,7 @@ async def download_policy_report(
         raise HTTPException(status_code=404, detail="Report not found")
     report_name = report["report_name"] or "report"
     generated_at = report["generated_at"]
-    header_name = f"{report_name}.pdf" if report_name.endswith(".pdf") else f"{report_name}.pdf"
+    header_name = report_name if report_name.endswith(".pdf") else f"{report_name}.pdf"
     content = (
         f"Report Name: {report_name}\n"
         f"Report Type: {report['report_type']}\n"

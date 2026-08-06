@@ -15,12 +15,20 @@ class KnowledgeBaseStore:
             raise HTTPException(status_code=503, detail="Supabase storage service is currently unavailable")
         return client
 
-    def list_objects(self, prefix: str = "") -> list[str]:
+    async def list_objects(self, prefix: str = "") -> list[str]:
+        import asyncio
+        return await asyncio.to_thread(self._list_objects_sync, prefix)
+
+    def _list_objects_sync(self, prefix: str = "") -> list[str]:
         client = self._get_client()
         objects = client.storage.from_(self.settings.supabase_knowledge_bucket).list(prefix)
         return [item["name"] for item in objects]
 
-    def signed_url(self, path: str, expires_in: int = 3600) -> str:
+    async def signed_url(self, path: str, expires_in: int = 3600) -> str:
+        import asyncio
+        return await asyncio.to_thread(self._signed_url_sync, path, expires_in)
+
+    def _signed_url_sync(self, path: str, expires_in: int = 3600) -> str:
         client = self._get_client()
         response = client.storage.from_(self.settings.supabase_knowledge_bucket).create_signed_url(
             path, expires_in

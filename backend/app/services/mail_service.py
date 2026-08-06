@@ -33,7 +33,11 @@ class MailService:
     def _is_configured(self) -> bool:
         return bool(self._smtp_user and self._smtp_password)
 
-    def send_message(self, *, to_email: str, subject: str, template_key: str, context: dict[str, Any]) -> bool:
+    async def send_message(self, *, to_email: str, subject: str, template_key: str, context: dict[str, Any]) -> bool:
+        import asyncio
+        return await asyncio.to_thread(self._send_message_sync, to_email=to_email, subject=subject, template_key=template_key, context=context)
+
+    def _send_message_sync(self, to_email: str, subject: str, template_key: str, context: dict[str, Any]) -> bool:
         if not self._is_configured:
             logger.warning(
                 "mail_service.smtp_not_configured: skipping email to %s for template %s",
@@ -68,8 +72,8 @@ class MailService:
             logger.error("mail_service.network_error: %s", exc)
         return False
 
-    def send_password_reset(self, *, to_email: str, reset_url: str) -> bool:
-        return self.send_message(
+    async def send_password_reset(self, *, to_email: str, reset_url: str) -> bool:
+        return await self.send_message(
             to_email=to_email,
             subject="ComplySense — Reset your password",
             template_key="password_reset",

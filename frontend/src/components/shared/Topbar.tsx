@@ -254,6 +254,7 @@ function NotifItem({
       evidence_rejected:   `${base}/evidence`,
       incident_logged:     "/security/incidents",
       policy_pending:      "/policy/inbox",
+      control_assigned:    `${base}/controls`,
       control_overdue:     "/compliance/controls",
       vendor_risk_flagged: "/vendor/dashboard",
     };

@@ -17,6 +17,7 @@ from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
 from app.schemas.auth import UserContext
+from app.services.auth_service import _get_mac
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -44,10 +45,6 @@ class SmartSamplePayload(BaseModel):
     assessment_id: str
 
 
-from typing import Any
-
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Handle this function with safety
 async def create_audit_report_entry(
@@ -107,6 +104,18 @@ async def create_audit_report_entry(
 
     return row
 
+def _format_utc_iso(dt_val: Any) -> str | None:
+    if not dt_val:
+        return None
+    try:
+        iso_str = dt_val.isoformat()
+    except Exception:
+        iso_str = str(dt_val)
+    if not iso_str.endswith("Z") and "+" not in iso_str and "-" not in iso_str[10:]:
+        iso_str += "Z"
+    return iso_str
+
+
 @router.get(
     "/recent",
     summary="Get recent audit logs across the platform (Super Admin) or scoped to institution",
@@ -120,14 +129,14 @@ async def get_recent_audit(
         select al.audit_log_id, al.institution_id, i.institution_name,
                al.user_id, u.full_name as user_name,
                al.action_type, al.entity_type, al.entity_id,
-               al.action_details, al.ip_address, al.created_at
+               al.action_details, al.ip_address, al.mac_address, al.created_at
           from audit_logs al
           left join institutions i on i.institution_id = al.institution_id
           left join users u on u.user_id = al.user_id
     """
     params: dict[str, Any] = {"limit": limit}
 
-    if user.active_role_name != RoleName.SUPER_ADMIN:
+    if user.active_role_name != RoleName.SUPER_ADMIN.value:
         query += " where al.institution_id = :inst_id"
         params["inst_id"] = user.institution_id
 
@@ -143,12 +152,8 @@ async def get_recent_audit(
             d["institution_id"] = str(d.get("institution_id")) if d.get("institution_id") else None
             d["user_id"] = str(d.get("user_id")) if d.get("user_id") else None
             d["entity_id"] = str(d.get("entity_id")) if d.get("entity_id") else None
-            # Normalize timestamp
-            if d.get("created_at"):
-                try:
-                    d["created_at"] = d["created_at"].isoformat()
-                except Exception:
-                    d["created_at"] = str(d["created_at"])
+            d["mac_address"] = d.get("mac_address") or (d.get("action_details") or {}).get("mac_address") or _get_mac()
+            d["created_at"] = _format_utc_iso(d.get("created_at"))
             out.append(d)
         return out
     except Exception as exc:
@@ -175,7 +180,7 @@ async def get_audit_logs(
         raise HTTPException(status_code=403, detail="Missing permission: view_audit_trail")
 
     scope_inst_id = institution_id
-    if user.active_role_name != RoleName.SUPER_ADMIN:
+    if user.active_role_name != RoleName.SUPER_ADMIN.value:
         scope_inst_id = user.institution_id
 
     query_select = """
@@ -183,7 +188,7 @@ async def get_audit_logs(
                al.user_id, u.full_name as user_name, u.email as user_email,
                al.active_role_id, r.role_name as role_at_time,
                al.action_type, al.entity_type, al.entity_id,
-               al.action_details, al.ip_address, al.created_at
+               al.action_details, al.ip_address, al.mac_address, al.created_at
           from audit_logs al
           left join institutions i on i.institution_id = al.institution_id
           left join users u on u.user_id = al.user_id
@@ -228,20 +233,21 @@ async def get_audit_logs(
 
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["Timestamp", "Institution", "User Name", "User Email", "Role At Time", "Action Type", "Entity Type", "Entity ID", "IP Address", "Details"])
+        writer.writerow(["Timestamp", "Institution", "User Name", "User Email", "Role", "Action", "Entity Type", "Entity ID", "IP Address", "MAC Address"])
 
         for r in rows:
+            d = dict(r)
             writer.writerow([
-                str(r["created_at"]),
-                r["institution_name"] or "System",
-                r["user_name"] or "System",
-                r["user_email"] or "N/A",
-                r["role_at_time"] or "N/A",
-                r["action_type"],
-                r["entity_type"] or "N/A",
-                str(r["entity_id"]) if r["entity_id"] else "N/A",
-                r["ip_address"] or "N/A",
-                str(r["action_details"] or ""),
+                _format_utc_iso(d.get("created_at")),
+                d.get("institution_name") or "System",
+                d.get("user_name") or "System",
+                d.get("user_email") or "",
+                d.get("role_at_time") or "",
+                d.get("action_type"),
+                d.get("entity_type") or "",
+                d.get("entity_id") or "",
+                d.get("ip_address") or "",
+                d.get("mac_address") or (d.get("action_details") or {}).get("mac_address") or _get_mac(),
             ])
 
         csv_data = output.getvalue()
@@ -272,6 +278,8 @@ async def get_audit_logs(
         d["user_id"] = str(d["user_id"]) if d["user_id"] else None
         d["active_role_id"] = str(d["active_role_id"]) if d["active_role_id"] else None
         d["entity_id"] = str(d["entity_id"]) if d["entity_id"] else None
+        d["mac_address"] = d.get("mac_address") or (d.get("action_details") or {}).get("mac_address") or _get_mac()
+        d["created_at"] = _format_utc_iso(d.get("created_at"))
         logs.append(d)
 
     return {"logs": logs, "total": total_count, "page": page, "limit": limit}

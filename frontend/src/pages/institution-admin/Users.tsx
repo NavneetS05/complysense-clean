@@ -6,7 +6,7 @@ import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
 import { useToast } from "../../components/shared/ToastContext";
 import { getApiErrorMessage } from "../../lib/errors";
-import { UserPlus, Lock, Unlock, AlertCircle } from "lucide-react";
+import { UserPlus, Lock, Unlock, AlertCircle, KeyRound } from "lucide-react";
 
 interface User {
   user_id: string;
@@ -53,6 +53,9 @@ export default function Users() {
   const [roleModal, setRoleModal] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
   const [newRole, setNewRole] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ user: User; action: "deactivate" | "activate" | "unlock" } | null>(null);
+  const [resetPwUser, setResetPwUser] = useState<User | null>(null);
+  const [customNewPw, setCustomNewPw] = useState("");
+  const [resetPwLoading, setResetPwLoading] = useState(false);
   const [form, setForm] = useState<InviteForm>(EMPTY_INVITE);
   const [formErrors, setFormErrors] = useState<Partial<InviteForm>>({});
   const [modalLoading, setModalLoading] = useState(false);
@@ -74,6 +77,23 @@ export default function Users() {
   useEffect(() => {
     api.get("/api/v1/departments").then((r) => setDepartments(r.data)).catch(() => {});
   }, []);
+
+  async function handleAdminResetPassword() {
+    if (!resetPwUser) return;
+    setResetPwLoading(true);
+    try {
+      const res = await api.post(`/api/v1/users/${resetPwUser.user_id}/reset-password`, {
+        new_password: customNewPw.trim() || undefined,
+      });
+      toast.success(`Password for ${resetPwUser.full_name} reset to: "${res.data.new_password}"`);
+      setResetPwUser(null);
+      setCustomNewPw("");
+      fetchUsers();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to reset password"));
+    }
+    setResetPwLoading(false);
+  }
 
   function validateInvite(): boolean {
     const errors: Partial<InviteForm> = {};
@@ -128,7 +148,9 @@ export default function Users() {
       }
       setConfirmAction(null);
       fetchUsers();
-    } catch { toast.error("Action failed"); }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Action failed"));
+    }
   }
 
   return (
@@ -200,6 +222,9 @@ export default function Users() {
                       <button className="btn btn-ghost" onClick={() => { setRoleModal({ open: true, user: u }); setNewRole(u.role_name); }} style={{ padding: "4px 8px", fontSize: 11 }}>
                         Change Role
                       </button>
+                      <button className="btn btn-ghost" onClick={() => setResetPwUser(u)} style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--primary)" }}>
+                        <KeyRound size={11} /> Reset PW
+                      </button>
                       {u.is_locked && (
                         <button className="btn btn-ghost" onClick={() => setConfirmAction({ user: u, action: "unlock" })} style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
                           <Unlock size={11} /> Unlock
@@ -257,7 +282,7 @@ export default function Users() {
                 {form.role_name === "Department Reviewer" && (
                   <div className="form-group">
                     <label className="form-label">Assign to Department</label>
-                    <select className="form-input" value={form.department_id ?? ""} onChange={(e) => setForm({ ...form, department_id: e.target.value || undefined })}>
+                    <select className="form-input" value={form.department_id ?? ""} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
                       <option value="">— Select department (optional) —</option>
                       {departments.map((d) => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
                     </select>
@@ -324,6 +349,43 @@ export default function Users() {
         onConfirm={handleConfirmAction}
         onCancel={() => setConfirmAction(null)}
       />
+
+      {/* Admin Reset Password Modal */}
+      {resetPwUser && (
+        <div className="modal-overlay" onClick={() => setResetPwUser(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Reset Password — {resetPwUser.full_name}</h2>
+              <button className="modal-close" onClick={() => setResetPwUser(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 16px" }}>
+                Resetting password for <strong style={{ color: "var(--text-primary)" }}>{resetPwUser.email}</strong>.
+              </p>
+
+              <div className="form-group">
+                <label className="form-label">New Password (optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Default: Comply@2025"
+                  value={customNewPw}
+                  onChange={(e) => setCustomNewPw(e.target.value)}
+                />
+                <span className="form-help" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, display: "block" }}>
+                  Leave blank to reset password to default <code style={{ color: "var(--primary)" }}>Comply@2025</code>.
+                </span>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setResetPwUser(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleAdminResetPassword} disabled={resetPwLoading}>
+                {resetPwLoading ? "Resetting..." : "Reset Password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }

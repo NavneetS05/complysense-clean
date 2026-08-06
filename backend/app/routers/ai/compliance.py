@@ -17,10 +17,28 @@ from app.routers.ai.proxy import forward_to_ai_service
 def _normalize_ai_result(result: dict[str, Any] | None) -> dict[str, Any]:
     if result is None:
         result = {}
-    # stable top-level keys for frontend
-    result["assessment_summary"] = result.get("assessment_summary") or result.get("summary") or result.get("response") or ""
-    result["recommendations"] = result.get("recommendations") or result.get("recommended_actions") or result.get("citations") or ""
-    result["risk_level"] = result.get("risk_level") or result.get("severity") or None
+
+    if "response_json" in result and isinstance(result["response_json"], dict):
+        for k, v in result["response_json"].items():
+            result.setdefault(k, v)
+
+    result["assessment_summary"] = (
+        result.get("assessment_summary")
+        or result.get("summary")
+        or result.get("justification")
+        or result.get("response")
+        or ""
+    )
+
+    recs = result.get("recommendations") or result.get("recommended_actions") or result.get("recommended_action")
+    if isinstance(recs, list):
+        recs = "\n".join(str(x) for x in recs)
+    elif not isinstance(recs, str):
+        citations = result.get("citations", [])
+        recs = ", ".join(citations) if isinstance(citations, list) else ""
+    result["recommendations"] = recs
+
+    result["risk_level"] = result.get("risk_level") or result.get("priority") or result.get("severity") or None
     result["dpdp_compliant"] = result.get("dpdp_compliant") if isinstance(result.get("dpdp_compliant"), bool) else None
     return result
 
@@ -45,12 +63,22 @@ class ComplianceChatProxyRequest(BaseModel):
 async def ai_compliance_chat(
     payload: ComplianceChatProxyRequest,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    session: AsyncSession = Depends(get_db_session),
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    from app.routers.ai.operational_context import build_institution_operational_context
+
     conversation_id = payload.conversation_id or str(uuid4())
+    op_context = await build_institution_operational_context(session, user_ctx.institution_id)
+
+    full_query = (
+        f"LIVE INSTITUTION DATABASE CONTEXT:\n{op_context}\n\n"
+        f"USER QUERY:\n{payload.query}"
+    ) if op_context else payload.query
+
     result = await forward_to_ai_service(
         "/compliance/chat",
-        {"query": payload.query, "conversation_id": conversation_id},
+        {"query": full_query, "conversation_id": conversation_id},
         authorization,
     )
     result = _normalize_ai_result(result)

@@ -41,35 +41,42 @@ async def compliance_triage(
     Triages a security incident log and classifies priority.
     Returns JSON with priority, cert_in_trigger flag, and mapped ISO controls.
     """
-    history = []
-    if payload.conversation_id:
-        try:
-            history = await _conv_mgr.get_history(
+    try:
+        history = []
+        if payload.conversation_id:
+            try:
+                history = await _conv_mgr.get_history(
+                    conversation_id=payload.conversation_id,
+                    user_id=str(user_ctx.user_id),
+                    institution_id=str(user_ctx.institution_id),
+                )
+            except ValueError:
+                raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
+
+        result = await _agent.triage(
+            incident_log=payload.incident_log,
+            conversation_history=history,
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(user_ctx.user_id),
+        )
+
+        if payload.conversation_id and result.get("response"):
+            await _conv_mgr.save_turn(
                 conversation_id=payload.conversation_id,
                 user_id=str(user_ctx.user_id),
                 institution_id=str(user_ctx.institution_id),
+                agent_type="compliance_triage",
+                user_query=payload.incident_log[:200],
+                assistant_response=result["response"],
             )
-        except ValueError:
-            raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
 
-    result = await _agent.triage(
-        incident_log=payload.incident_log,
-        conversation_history=history,
-        institution_id=str(user_ctx.institution_id),
-        user_id=str(user_ctx.user_id),
-    )
+        return result
+    except Exception as exc:
+        print(f"UNCAUGHT EXCEPTION in compliance_triage: {exc}")
+        import traceback
 
-    if payload.conversation_id and result.get("response"):
-        await _conv_mgr.save_turn(
-            conversation_id=payload.conversation_id,
-            user_id=str(user_ctx.user_id),
-            institution_id=str(user_ctx.institution_id),
-            agent_type="compliance_triage",
-            user_query=payload.incident_log[:200],
-            assistant_response=result["response"],
-        )
-
-    return result
+        traceback.print_exc()
+        raise
 
 
 @router.post("/regulatory-change", summary="Analyze a new regulatory circular for gaps")
@@ -80,35 +87,42 @@ async def regulatory_change(
     """
     Compares new regulatory circular against existing compliance posture and maps gaps.
     """
-    history = []
-    if payload.conversation_id:
-        try:
-            history = await _conv_mgr.get_history(
+    try:
+        history = []
+        if payload.conversation_id:
+            try:
+                history = await _conv_mgr.get_history(
+                    conversation_id=payload.conversation_id,
+                    user_id=str(user_ctx.user_id),
+                    institution_id=str(user_ctx.institution_id),
+                )
+            except ValueError:
+                raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
+
+        result = await _agent.regulatory_change(
+            circular_text=payload.circular_text,
+            conversation_history=history,
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(user_ctx.user_id),
+        )
+
+        if payload.conversation_id and result.get("response"):
+            await _conv_mgr.save_turn(
                 conversation_id=payload.conversation_id,
                 user_id=str(user_ctx.user_id),
                 institution_id=str(user_ctx.institution_id),
+                agent_type="regulatory_change",
+                user_query=payload.circular_text[:200],
+                assistant_response=result["response"],
             )
-        except ValueError:
-            raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
 
-    result = await _agent.regulatory_change(
-        circular_text=payload.circular_text,
-        conversation_history=history,
-        institution_id=str(user_ctx.institution_id),
-        user_id=str(user_ctx.user_id),
-    )
+        return result
+    except Exception as exc:
+        print(f"UNCAUGHT EXCEPTION in regulatory_change: {exc}")
+        import traceback
 
-    if payload.conversation_id and result.get("response"):
-        await _conv_mgr.save_turn(
-            conversation_id=payload.conversation_id,
-            user_id=str(user_ctx.user_id),
-            institution_id=str(user_ctx.institution_id),
-            agent_type="regulatory_change",
-            user_query=payload.circular_text[:200],
-            assistant_response=result["response"],
-        )
-
-    return result
+        traceback.print_exc()
+        raise
 
 
 @router.post("/chat", summary="General compliance Q&A")
@@ -119,34 +133,42 @@ async def compliance_chat(
     """
     Conversational Q&A endpoint for compliance officers.
     """
-    history = []
-    if payload.conversation_id:
-        try:
-            history = await _conv_mgr.get_history(
+    try:
+        history = []
+        if payload.conversation_id:
+            try:
+                history = await _conv_mgr.get_history(
+                    conversation_id=payload.conversation_id,
+                    user_id=str(user_ctx.user_id),
+                    institution_id=str(user_ctx.institution_id),
+                )
+            except ValueError:
+                raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
+
+        result = await _agent.execute(
+            query=payload.query,
+            conversation_history=history,
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(user_ctx.user_id),
+            user_role=str(user_ctx.active_role_name),
+            endpoint_name="chat",
+        )
+
+        if payload.conversation_id and result.get("response"):
+            await _conv_mgr.save_turn(
                 conversation_id=payload.conversation_id,
                 user_id=str(user_ctx.user_id),
                 institution_id=str(user_ctx.institution_id),
+                agent_type="compliance_chat",
+                user_query=payload.query,
+                assistant_response=result["response"],
             )
-        except ValueError:
-            raise HTTPException(status_code=403, detail="Not authorized for this conversation.")
 
-    result = await _agent.execute(
-        query=payload.query,
-        conversation_history=history,
-        institution_id=str(user_ctx.institution_id),
-        user_id=str(user_ctx.user_id),
-        endpoint_name="chat",
-    )
+        return result
+    except Exception as exc:
+        print(f"UNCAUGHT EXCEPTION in compliance_chat: {exc}")
+        import traceback
 
-    if payload.conversation_id and result.get("response"):
-        await _conv_mgr.save_turn(
-            conversation_id=payload.conversation_id,
-            user_id=str(user_ctx.user_id),
-            institution_id=str(user_ctx.institution_id),
-            agent_type="compliance_chat",
-            user_query=payload.query,
-            assistant_response=result["response"],
-        )
-
-    return result
+        traceback.print_exc()
+        raise
 

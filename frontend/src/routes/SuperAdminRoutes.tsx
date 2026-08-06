@@ -8,6 +8,7 @@ import Dashboard from "../pages/super-admin/Dashboard";
 import Roles from "../pages/super-admin/Roles";
 import TenantDetail from "../pages/super-admin/TenantDetail";
 import Tenants from "../pages/super-admin/Tenants";
+import Notifications from "../pages/compliance/Notifications";
 
 export const superAdminRoutes: RouteObject = {
   path: "/super-admin",
@@ -22,5 +23,6 @@ export const superAdminRoutes: RouteObject = {
     { path: "tenants/:institution_id", element: <TenantDetail /> },
     { path: "audit-trail", element: <AuditTrail /> },
     { path: "roles",     element: <Roles /> },
+    { path: "notifications", element: <Notifications /> },
   ],
 };

@@ -58,6 +58,7 @@ async def translate_control(
         conversation_history=history,
         institution_id=str(user_ctx.institution_id),
         user_id=str(user_ctx.user_id),
+        user_role=str(user_ctx.active_role_name),
         task_prompt=DEPT_TRANSLATE_PROMPT,
         extra_context=payload.control_text,
         endpoint_name="translate_control",
@@ -103,6 +104,7 @@ async def preflight_check(
         conversation_history=history,
         institution_id=str(user_ctx.institution_id),
         user_id=str(user_ctx.user_id),
+        user_role=str(user_ctx.active_role_name),
         task_prompt=DEPT_PREFLIGHT_PROMPT,
         extra_context=combined_content,
         endpoint_name="preflight_check",
@@ -142,6 +144,7 @@ async def dept_chat(
         conversation_history=history,
         institution_id=str(user_ctx.institution_id),
         user_id=str(user_ctx.user_id),
+        user_role=str(user_ctx.active_role_name),
         endpoint_name="chat",
     )
 

@@ -8,6 +8,7 @@ import Dashboard from "../pages/institution-admin/Dashboard";
 import Departments from "../pages/institution-admin/Departments";
 import Reports from "../pages/institution-admin/Reports";
 import Users from "../pages/institution-admin/Users";
+import Notifications from "../pages/compliance/Notifications";
 
 export const adminRoutes: RouteObject = {
   path: "/admin",
@@ -21,6 +22,7 @@ export const adminRoutes: RouteObject = {
     { path: "departments", element: <Departments /> },
     { path: "users", element: <Users /> },
     { path: "calendar", element: <Calendar /> },
-    { path: "reports", element: <Reports /> }
+    { path: "reports", element: <Reports /> },
+    { path: "notifications", element: <Notifications /> }
   ]
 };

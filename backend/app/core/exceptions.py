@@ -67,11 +67,13 @@ def register_exception_handlers(app: FastAPI) -> None:
         1) which adds CORS headers. The browser now gets a proper 500 JSON body
         with CORS headers — the real error is visible instead of a CORS mystery.
         """
+        tb = traceback.format_exc()
+        print(f"\n======== UNHANDLED EXCEPTION ON {request.method} {request.url.path} ========\n{tb}\n======================================================\n", flush=True)
         _log.error(
             "Unhandled exception on %s %s\n%s",
             request.method,
             request.url.path,
-            traceback.format_exc(),
+            tb,
         )
         detail = str(exc) if str(exc) else type(exc).__name__
         return JSONResponse(

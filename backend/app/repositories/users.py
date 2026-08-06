@@ -240,7 +240,8 @@ class UserRepository:
     async def block_user(self, user_id: str, *, blocked_until: datetime) -> None:
         """Set blocked_until to block the user until the specified datetime."""
         if blocked_until and blocked_until.tzinfo is not None:
-            blocked_until = blocked_until.replace(tzinfo=None)
+            from datetime import UTC
+            blocked_until = blocked_until.astimezone(UTC).replace(tzinfo=None)
         await self.session.execute(
             text(
                 """
@@ -277,7 +278,8 @@ class UserRepository:
     ) -> str:
         """Insert a password-reset token and return the token_id."""
         if expires_at and expires_at.tzinfo is not None:
-            expires_at = expires_at.replace(tzinfo=None)
+            from datetime import UTC
+            expires_at = expires_at.astimezone(UTC).replace(tzinfo=None)
         result = await self.session.execute(
             text(
                 """

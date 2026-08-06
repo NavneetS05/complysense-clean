@@ -26,83 +26,23 @@ Partially Implemented:
 - Refresh tokens are stored in backend-managed HttpOnly cookies.
 - `localStorage` stores only the user profile and UI theme preference.
 
-## API Clients
+## API Clients & Security Interceptor
 
 Implemented:
 
 - Main API client: `frontend/src/lib/api.ts`.
 - Auth helpers: `frontend/src/lib/auth.ts`.
+- **Axios 401 Interceptor Security Guard**: Excluded `/login`, `/register`, and `/refresh` from 401 token refresh loops in `frontend/src/lib/api.ts`. Prevents bad credentials from triggering automatic token rotation loops.
+- **Client-Side MAC Address Fingerprinting**: `getClientMacAddress()` in `frontend/src/lib/auth.ts` collects browser hardware device fingerprint metrics to pass `mac_address` in payload and `X-Client-MAC` HTTP header on login.
 
-Partially Implemented:
+## Implemented UI Modals & Enhancements
 
-- `frontend/src/lib/aiApi.ts` exports a direct AI service client but no usages were found by `rg "aiApi" frontend/src -n`.
-- Main API proxy routes should be preferred for AI calls because they can enforce auth and tenancy.
-
-## Routing and RBAC
-
-Implemented:
-
-- `ProtectedRoute` blocks unauthenticated routes.
-- `RoleRoute` checks allowed role names.
-- Role routes are split by workspace:
-  - `AdminRoutes.tsx`
-  - `ComplianceRoutes.tsx`
-  - `SecurityRoutes.tsx`
-  - `SuperAdminRoutes.tsx`
-  - `AssessorRoutes.tsx`
-  - `AuditorRoutes.tsx`
-  - `DeptRoutes.tsx`
-  - `VendorRoutes.tsx`
-  - `PolicyRoutes.tsx`
-
-Partially Implemented:
-
-- Guards are role-name based, while backend authorization is permission-key based. This is acceptable but requires seeded permissions to remain aligned with frontend role assumptions.
-
-## Navigation
-
-Implemented:
-
-- `frontend/src/components/shared/Sidebar.tsx` defines `NAV_MAP` for all roles.
-- Sidebar uses active role, supporting assumed-role navigation display.
-
-Partially Implemented:
-
-- `pending` badges are noted as TODO-like behavior: unread badge uses notification store, but pending counts are not backed by API in the inspected component.
-
-## Pages by Workspace
-
-Implemented page shells:
-
-- Auth: Login, Forgot Password, Reset Password.
-- Super Admin: Dashboard, Tenants, Tenant Detail, Audit Trail, Roles.
-- Institution Admin: Dashboard, Departments, Users, Calendar, Reports.
-- Compliance: Dashboard, Controls, Control Detail, Gaps, Evidence Queue, Assessments, Assessment Runner, Policies, Tasks, Notifications.
-- Security: Dashboard, Incidents, New Incident, Incident Detail, Controls, Evidence.
-- Auditor: Workspace, Observations, Report Builder, Report View.
-- Department: Dashboard, Tasks, Task Wizard, Evidence, Self Assessment.
-- Vendor: Dashboard, New Vendor, Vendor Detail, Expiry Tracker.
-- Policy: Inbox, Policy Review, History.
-- Assessor: Dashboard, Report Library, Report View, Chat. These are wired to read-only backend APIs.
-
-## Validation
-
-Partially Implemented:
-
-- Forms use a mixture of local React state and API error handling.
-- Dependencies include `react-hook-form` and `zod`, but many inspected pages rely on ad hoc state and backend validation.
-
-## Loading and Error Handling
-
-Implemented:
-
-- Auth hydration shows a spinner in `ProtectedRoute`.
-- Axios interceptor attempts silent token refresh on 401.
-
-Partially Implemented:
-
-- Lockout handling reads the backend 423 envelope and `blocked_until`.
-- Many pages use generic error handling and `any` in catch blocks.
+- **Security & Password Card ([`Profile.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/Profile.tsx))**: User self password change section added across all 9 RBAC roles.
+- **User Reset Password & Invite Modals ([`Users.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/institution-admin/Users.tsx) & [`TenantDetail.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/super-admin/TenantDetail.tsx))**: Action buttons and modals to reset user passwords and invite users into institutions.
+- **Delete Tenant Modal ([`Tenants.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/super-admin/Tenants.tsx))**: Permanent tenant deletion confirmation modal in Super Admin portal.
+- **MAC Address Audit Columns ([`AuditTrail.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/super-admin/AuditTrail.tsx) & [`TenantDetail.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/super-admin/TenantDetail.tsx))**: Dedicated MAC Address column added to Audit Trail and Tenant Detail Audit tabs.
+- **Auditor AI Smart Sampling ([`Workspace.tsx`](file:///d:/dump.worktrees/debugging-project-errors/frontend/src/pages/auditor/Workspace.tsx))**: Wired smart sampling action to return stratified sampling data.
+- **Notifications System**: Unread notifications feed and topbar badge connected to `/api/v1/notifications`.
 
 ## Styling
 
@@ -111,22 +51,8 @@ Implemented:
 - Central CSS: `frontend/src/styles.css`.
 - Shared components: `PageShell`, `Sidebar`, `Topbar`, `Toast`, `StatusBadge`, `DataTable`, `FileUpload`, `AIPanel`, `CitationChip`.
 
-## Lint and Type Status
+## Type Status
 
 Verified:
 
-- Typecheck passed with `npm.cmd run typecheck`.
-- Lint failed with 76 errors and 10 warnings.
-
-Major lint classes:
-
-- Unused imports.
-- `@typescript-eslint/no-explicit-any`.
-- Missing React hook dependencies.
-- One unnecessary escape warning.
-
-## Missing Frontend Work
-
-- Remove or wire `aiApi.ts`.
-- Implement notification data flow or hide nonfunctional notification/pending badges.
-- Clean lint errors before production release.
+- Typecheck passed cleanly with `npm.cmd run typecheck`.

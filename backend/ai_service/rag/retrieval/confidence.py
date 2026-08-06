@@ -33,18 +33,20 @@ class ConfidenceScorer:
             return False
 
         top = results[0]
-        # Prefer RRF score (post-merge), fall back to direct score
-        score = top.get("rrf_score") or top.get("score")
+        if "rrf_score" in top:
+            # RRF score scale is reciprocal rank sum (~0.016 to ~0.04).
+            passed = float(top["rrf_score"]) > 0.001
+            return passed
 
+        score = top.get("score")
         if score is not None:
-            passed = float(score) >= self.threshold
+            passed = float(score) >= 0.15
             if not passed:
                 logger.info(
                     "confidence_scorer.below_threshold",
                     score=score,
-                    threshold=self.threshold,
+                    threshold=0.15,
                 )
             return passed
 
-        # No score field — trust the retrieval (RRF merge always produces scores)
         return True

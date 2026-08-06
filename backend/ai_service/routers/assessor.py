@@ -48,6 +48,7 @@ async def chat_endpoint(
         conversation_history=history,
         institution_id=str(user_ctx.institution_id),
         user_id=str(user_ctx.user_id),
+        user_role=str(user_ctx.active_role_name),
     )
 
     if payload.conversation_id and result.get("response"):

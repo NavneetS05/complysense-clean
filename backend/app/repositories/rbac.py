@@ -22,3 +22,16 @@ class RbacRepository:
             {"role_id": role_id},
         )
         return [str(row[0]) for row in result.all()]
+
+    async def find_role_by_id(self, role_id: str):
+        result = await self.session.execute(
+            text(
+                """
+                select role_id, role_name
+                  from roles
+                 where role_id = :role_id
+                """
+            ),
+            {"role_id": role_id},
+        )
+        return result.mappings().first()

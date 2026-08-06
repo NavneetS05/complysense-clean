@@ -2,6 +2,7 @@
 
 import axios from "axios";
 import { useAuthStore } from "../store/authStore";
+import { persistSession, clearSessionStorage } from "./storage";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -28,7 +29,13 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    if (error.response?.status === 401 && !original._retry) {
+    // Do NOT trigger silent refresh for login, register, or refresh endpoint errors
+    const isAuthEndpoint =
+      original?.url?.includes("/api/v1/auth/login") ||
+      original?.url?.includes("/api/v1/auth/register") ||
+      original?.url?.includes("/api/v1/auth/refresh");
+
+    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true;
 
       if (isRefreshing) {
@@ -69,6 +76,5 @@ api.interceptors.response.use(
   }
 );
 
-// Helpers re-exported here to avoid circular imports in some call sites
-import { persistSession, clearSessionStorage } from "./auth";
+// Re-export storage helpers for convenience
 export { persistSession, clearSessionStorage };

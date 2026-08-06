@@ -47,12 +47,22 @@ class AuditChatProxyRequest(BaseModel):
 async def ai_audit_chat(
     payload: AuditChatProxyRequest,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_CONTROLS))],
+    session: AsyncSession = Depends(get_db_session),
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    from app.routers.ai.operational_context import build_institution_operational_context
+
     conversation_id = payload.conversation_id or str(uuid4())
+    op_context = await build_institution_operational_context(session, user_ctx.institution_id)
+
+    full_query = (
+        f"LIVE INSTITUTION DATABASE CONTEXT:\n{op_context}\n\n"
+        f"USER QUERY:\n{payload.query}"
+    ) if op_context else payload.query
+
     result = await forward_to_ai_service(
         "/audit/chat",
-        {"query": payload.query, "conversation_id": conversation_id},
+        {"query": full_query, "conversation_id": conversation_id},
         authorization,
     )
     result = _normalize_ai_result(result)
@@ -123,7 +133,20 @@ async def ai_smart_sample(
     }
 
     res = await forward_to_ai_service("/audit/smart-sample", ai_payload, authorization)
-    return _normalize_ai_result(res)
+    normalized = _normalize_ai_result(res)
+
+    ev_query = """
+        select e.evidence_id
+        from evidence_documents e
+        join control_assignments ca on ca.control_id = e.control_id and ca.institution_id = e.institution_id
+        where ca.framework_name = :framework_name and ca.institution_id = :inst_id
+        order by e.uploaded_at desc
+        limit 10
+    """
+    ev_res = await session.execute(text(ev_query), {"framework_name": assess_row["framework_name"], "inst_id": user_ctx.institution_id})
+    ev_rows = ev_res.mappings().all()
+    normalized["priority_evidence_ids"] = [str(r["evidence_id"]) for r in ev_rows]
+    return normalized
 
 
 @router.post("/draft-observation", summary="Draft a formal audit observation via AI")

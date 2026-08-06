@@ -16,6 +16,7 @@ interface AuditLog {
   entity_type: string | null;
   entity_id: string | null;
   ip_address: string | null;
+  mac_address?: string | null;
   created_at: string;
 }
 
@@ -25,18 +26,46 @@ interface Institution {
 }
 
 const ACTION_TYPES = [
-  "login", "logout", "user_created", "role_changed", "login_failed",
-  "evidence_approved", "evidence_rejected", "reviewer_assigned", "user_blocked",
-  "password_reset_requested", "exit_role_assumption",
+  "login", "logout", "user_created", "user_invited", "user_role_updated",
+  "user_unlocked", "admin_password_reset", "change_password", "institution_created",
+  "institution_updated", "institution_status_toggled", "department_created",
+  "event_created", "evidence_approved", "evidence_rejected", "reviewer_assigned", "user_blocked",
 ];
 
 const ACTION_LABELS: Record<string, string> = {
-  login: "Login", logout: "Logout", user_created: "User Created",
-  role_changed: "Role Changed", login_failed: "Login Failed",
-  evidence_approved: "Evidence Approved", evidence_rejected: "Evidence Rejected",
-  reviewer_assigned: "Reviewer Assigned", user_blocked: "Account Blocked",
-  password_reset_requested: "Password Reset Requested",
-  exit_role_assumption: "Exited Role Assumption",
+  login: "Logged In",
+  logout: "Logged Out",
+  register: "Account Registered",
+  user_created: "Created User",
+  user_invited: "Invited User",
+  user_role_updated: "Updated User Role",
+  user_unlocked: "Unlocked User Account",
+  admin_password_reset: "Reset User Password",
+  change_password: "Changed Password",
+  institution_created: "Created Institution",
+  institution_updated: "Updated Institution",
+  institution_deleted: "Deleted Institution",
+  institution_status_toggled: "Toggled Institution Status",
+  department_created: "Created Department",
+  department_updated: "Updated Department",
+  department_deleted: "Deleted Department",
+  event_created: "Created Calendar Event",
+  event_updated: "Updated Calendar Event",
+  event_deleted: "Deleted Calendar Event",
+  policy_created: "Created Policy",
+  policy_approved: "Approved Policy",
+  policy_rejected: "Rejected Policy",
+  evidence_submitted: "Submitted Evidence",
+  evidence_approved: "Approved Evidence",
+  evidence_rejected: "Rejected Evidence",
+  incident_created: "Reported Incident",
+  incident_updated: "Updated Incident",
+  vendor_created: "Added Vendor",
+  vendor_assessed: "Assessed Vendor",
+  observation_added: "Added Audit Observation",
+  reviewer_assigned: "Assigned Reviewer",
+  login_failed: "Failed Login",
+  user_blocked: "Account Blocked",
 };
 
 export default function AuditTrail() {
@@ -173,15 +202,16 @@ export default function AuditTrail() {
                 <th>Entity Type</th>
                 <th>Entity ID</th>
                 <th>IP Address</th>
+                <th>MAC Address</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 10 }).map((_, i) => (
-                  <tr key={i}>{Array.from({ length: 8 }).map((_, j) => <td key={j}><div className="skeleton" style={{ height: 16, borderRadius: 4 }} /></td>)}</tr>
+                  <tr key={i}>{Array.from({ length: 9 }).map((_, j) => <td key={j}><div className="skeleton" style={{ height: 16, borderRadius: 4 }} /></td>)}</tr>
                 ))
               ) : logs.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: 40 }}>No audit logs match your filters.</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)", padding: 40 }}>No audit logs match your filters.</td></tr>
               ) : logs.map((log) => (
                 <tr key={log.audit_log_id}>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap", color: "var(--text-muted)" }}>
@@ -206,6 +236,7 @@ export default function AuditTrail() {
                     ) : "—"}
                   </td>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{log.ip_address ?? "—"}</td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{log.mac_address ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

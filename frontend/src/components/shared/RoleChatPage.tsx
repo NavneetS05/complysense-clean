@@ -4,6 +4,8 @@ import { PageShell } from "../../components/shared/PageShell";
 import { api } from "../../lib/api";
 import { CitationChip } from "./CitationChip";
 
+import { getApiErrorMessage } from "../../lib/errors";
+
 type Message = { role: "user" | "assistant"; content: string };
 type Citation = { framework?: string; source?: string; section?: string; title?: string };
 
@@ -39,8 +41,8 @@ export function RoleChatPage({ title, context, endpoint, placeholder, prompts }:
       setConversationId(data.conversation_id ?? null);
       setMessages([...nextMessages, { role: "assistant", content: data.response || "No answer returned." }]);
       setCitations(data.citations || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to reach the AI assistant.");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Unable to reach the AI assistant. Please try again."));
     } finally {
       setLoading(false);
     }

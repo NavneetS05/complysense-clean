@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.core.permissions import require_permission
 from app.database import get_db_session
-from app.domain.rbac import PermissionKey
+from app.domain.rbac import PermissionKey, RoleName
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -174,37 +174,38 @@ async def get_institution_dashboard(
         )
         incident_stats = incident_res.mappings().first() or {}
 
-        compliance_rows = await session.execute(
+        # Live compliance score per framework calculated from control_assignments
+        framework_rows = await session.execute(
             text(
                 """
-                select framework_name, compliance_percentage, created_at
-                from compliance_results
+                select framework_name,
+                       count(*) as total_controls,
+                       count(*) filter (where status = 'compliant') as compliant_controls
+                from control_assignments
                 where institution_id = :inst_id
-                order by framework_name asc, created_at asc
+                group by framework_name
+                order by framework_name asc
                 """
             ),
             {"inst_id": user_ctx.institution_id},
         )
-        framework_groups: dict[str, list[float]] = {}
-        for row in compliance_rows.mappings().all():
-            name = row["framework_name"] or "General"
-            framework_groups.setdefault(name, []).append(float(row["compliance_percentage"] or 0))
 
         frameworks: list[dict[str, Any]] = []
-        for name, values in framework_groups.items():
-            current = values[-1] if values else 0.0
-            previous = values[-2] if len(values) > 1 else current
-            if current > previous + 1:
-                trend = "up"
-            elif current < previous - 1:
-                trend = "down"
-            else:
-                trend = "flat"
+        total_institution_controls = 0
+        total_compliant_institution_controls = 0
+
+        for row in framework_rows.mappings().all():
+            name = row["framework_name"] or "General"
+            tot = int(row["total_controls"] or 0)
+            comp = int(row["compliant_controls"] or 0)
+            total_institution_controls += tot
+            total_compliant_institution_controls += comp
+            pct = round((comp / tot) * 100, 1) if tot > 0 else 0.0
             frameworks.append(
                 {
                     "framework_name": name,
-                    "percentage": round(current, 1),
-                    "trend": trend,
+                    "percentage": pct,
+                    "trend": "flat",
                 }
             )
 
@@ -213,18 +214,15 @@ async def get_institution_dashboard(
                 """
                 select d.department_name,
                        round(coalesce(avg(case
-                           when ca.status = 'compliant' then 100.0
-                           when ca.status = 'submitted' then 90.0
-                           when ca.status = 'in_progress' then 60.0
-                           when ca.status = 'non_compliant' then 25.0
-                           else 0.0
-                       end), 0), 1) as compliance_score
+                         when ca.status = 'compliant' then 100.0
+                         when ca.status = 'submitted' then 75.0
+                         when ca.status = 'in_progress' then 40.0
+                         else 0.0
+                       end), 0.0)::numeric, 1) as score
                 from departments d
-                left join control_assignments ca
-                  on ca.institution_id = d.institution_id
-                 and ca.department_id = d.department_id
+                left join users u on u.user_id = d.reviewer_user_id
+                left join control_assignments ca on ca.institution_id = d.institution_id
                 where d.institution_id = :inst_id
-                  and d.is_active = true
                 group by d.department_id, d.department_name
                 order by d.department_name asc
                 """
@@ -234,7 +232,7 @@ async def get_institution_dashboard(
         departments = [
             {
                 "department_name": row["department_name"],
-                "compliance_score": int(row["compliance_score"] or 0),
+                "compliance_score": float(row["score"] or 0),
             }
             for row in dept_rows.mappings().all()
         ]
@@ -282,22 +280,12 @@ async def get_institution_dashboard(
                 }
             )
 
-        latest_result = await session.execute(
-            text(
-                """
-                select compliance_percentage
-                from compliance_results
-                where institution_id = :inst_id
-                order by created_at desc
-                limit 2
-                """
-            ),
-            {"inst_id": user_ctx.institution_id},
+        current_compliance = (
+            round((total_compliant_institution_controls / total_institution_controls) * 100, 1)
+            if total_institution_controls > 0
+            else 0.0
         )
-        latest_values = [float(row[0] or 0) for row in latest_result.fetchall()]
-        current_compliance = latest_values[0] if latest_values else 0.0
-        previous_compliance = latest_values[1] if len(latest_values) > 1 else current_compliance
-        compliance_delta = round(current_compliance - previous_compliance, 1)
+        compliance_delta = 0.0
 
         return {
             "stats": {
@@ -331,32 +319,39 @@ async def list_institutions(
     state: str | None = Query(None),
 ) -> list[dict[str, Any]]:
     query_str = """
-        select institution_id, institution_name, institution_type, email, phone,
-               address, city, state, country, staff_count, is_active, created_at
-          from institutions
+        select i.institution_id, i.institution_name, i.institution_type, i.email, i.phone,
+               i.address, i.city, i.state, i.country, i.staff_count, i.is_active, i.created_at,
+               coalesce(
+                   round(
+                       (count(ca.assignment_id) filter (where ca.status = 'compliant')::numeric /
+                        nullif(count(ca.assignment_id), 0)::numeric) * 100, 1
+                   ), 0.0
+               ) as compliance_percentage
+          from institutions i
+          left join control_assignments ca on ca.institution_id = i.institution_id
          where 1=1
     """
     params: dict[str, Any] = {}
 
     if search:
-        query_str += " and (lower(institution_name) like lower(:search) or lower(city) like lower(:search))"
+        query_str += " and (lower(i.institution_name) like lower(:search) or lower(i.city) like lower(:search))"
         params["search"] = f"%{search}%"
     
     if status is not None and status != "All":
         if status == "Active":
-            query_str += " and is_active = true"
+            query_str += " and i.is_active = true"
         elif status == "Inactive":
-            query_str += " and is_active = false"
+            query_str += " and i.is_active = false"
 
     if type and type != "All":
-        query_str += " and institution_type = :type"
+        query_str += " and i.institution_type = :type"
         params["type"] = type
 
     if state and state != "All":
-        query_str += " and state = :state"
+        query_str += " and i.state = :state"
         params["state"] = state
 
-    query_str += " order by institution_name asc"
+    query_str += " group by i.institution_id order by i.institution_name asc"
 
     res = await session.execute(text(query_str), params)
     rows = res.mappings().all()
@@ -365,8 +360,7 @@ async def list_institutions(
     for r in rows:
         d = dict(r)
         d["institution_id"] = str(d["institution_id"])
-        # Mock compliance percentage per row (healthy/warning/critical rules)
-        d["compliance_percentage"] = 85 if d["is_active"] else 40
+        d["compliance_percentage"] = float(d["compliance_percentage"] or 0)
         out.append(d)
     return out
 
@@ -378,7 +372,7 @@ async def list_institutions(
 )
 async def create_institution(
     payload: InstitutionCreate,
-    _: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
     query = """
@@ -393,24 +387,36 @@ async def create_institution(
     try:
         res = await session.execute(text(query), payload.model_dump())
         row = res.mappings().first()
-        await session.commit()
         if not row:
             raise HTTPException(status_code=500, detail="Failed to insert institution")
         
         d = dict(row)
-        d["institution_id"] = str(d["institution_id"])
+        inst_id = str(d["institution_id"])
+        d["institution_id"] = inst_id
+
+        from app.repositories.audit import AuditLogRepository
+        await AuditLogRepository(session).write(
+            institution_id=inst_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="institution_created",
+            entity_type="institution",
+            entity_id=inst_id,
+            action_details={"institution_name": d.get("institution_name")},
+        )
+        await session.commit()
         return d
     except Exception as exc:
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to create institution: {exc}",
+            detail=str(exc),
         )
 
 
 @router.get(
     "/{institution_id}",
-    summary="Get single institution details and sub-stats",
+    summary="Get details for a single institution",
 )
 async def get_institution_detail(
     institution_id: str,
@@ -418,31 +424,51 @@ async def get_institution_detail(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
     res = await session.execute(
-        text("select * from institutions where institution_id = :id"),
+        text(
+            """
+            select i.*
+              from institutions i
+             where i.institution_id = :id
+            """
+        ),
         {"id": institution_id},
     )
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Institution not found")
 
-    # Get user counts, department counts
-    res_users = await session.execute(
+    user_count_res = await session.execute(
         text("select count(*) from users where institution_id = :id"),
         {"id": institution_id},
     )
-    user_count = res_users.scalar() or 0
+    user_count = user_count_res.scalar() or 0
 
-    res_depts = await session.execute(
+    dept_count_res = await session.execute(
         text("select count(*) from departments where institution_id = :id"),
         {"id": institution_id},
     )
-    dept_count = res_depts.scalar() or 0
+    dept_count = dept_count_res.scalar() or 0
+
+    comp_res = await session.execute(
+        text(
+            """
+            select round(coalesce(
+                count(*) filter (where status = 'compliant')::numeric / nullif(count(*), 0)::numeric * 100.0,
+                0.0
+            ), 1) as compliance_percentage
+            from control_assignments
+            where institution_id = :id
+            """
+        ),
+        {"id": institution_id},
+    )
+    compliance_pct = float(comp_res.scalar() or 0)
 
     d = dict(row)
     d["institution_id"] = str(d["institution_id"])
     d["user_count"] = user_count
     d["department_count"] = dept_count
-    d["compliance_percentage"] = 78  # Mock average score for this specific detail view
+    d["compliance_percentage"] = compliance_pct
 
     return d
 
@@ -454,7 +480,7 @@ async def get_institution_detail(
 async def toggle_institution_status(
     institution_id: str,
     payload: StatusToggle,
-    _: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
     res = await session.execute(
@@ -463,7 +489,7 @@ async def toggle_institution_status(
             update institutions
                set is_active = :is_active, updated_at = now()
              where institution_id = :id
-            returning institution_id, is_active
+            returning institution_id, is_active, institution_name
             """
         ),
         {"is_active": payload.is_active, "id": institution_id},
@@ -472,6 +498,17 @@ async def toggle_institution_status(
     if not row:
         await session.rollback()
         raise HTTPException(status_code=404, detail="Institution not found")
+
+    from app.repositories.audit import AuditLogRepository
+    await AuditLogRepository(session).write(
+        institution_id=institution_id,
+        user_id=user_ctx.user_id,
+        active_role_id=user_ctx.active_role_id,
+        action_type="institution_status_toggled",
+        entity_type="institution",
+        entity_id=institution_id,
+        action_details={"is_active": row["is_active"], "institution_name": row["institution_name"]},
+    )
     await session.commit()
     return {"institution_id": str(row["institution_id"]), "is_active": row["is_active"]}
 
@@ -483,7 +520,7 @@ async def toggle_institution_status(
 async def update_institution(
     institution_id: str,
     payload: InstitutionUpdate,
-    _: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
     # Construct dynamic updates
@@ -502,7 +539,7 @@ async def update_institution(
         update institutions
            set {update_str}, updated_at = now()
          where institution_id = :id
-        returning institution_id
+        returning institution_id, institution_name
     """
     try:
         res = await session.execute(text(query), params)
@@ -510,8 +547,64 @@ async def update_institution(
         if not row:
             await session.rollback()
             raise HTTPException(status_code=404, detail="Institution not found")
+
+        from app.repositories.audit import AuditLogRepository
+        await AuditLogRepository(session).write(
+            institution_id=institution_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="institution_updated",
+            entity_type="institution",
+            entity_id=institution_id,
+            action_details={"institution_name": row["institution_name"]},
+        )
         await session.commit()
         return {"institution_id": str(row["institution_id"]), "message": "Updated successfully"}
     except Exception as exc:
         await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete(
+    "/{institution_id}",
+    summary="Permanently delete an institution and all associated tenant records (Super Admin only)",
+)
+async def delete_institution(
+    institution_id: str,
+    user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_INSTITUTIONS))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    if user_ctx.active_role_name != RoleName.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Only Super Admin can delete an institution")
+
+    try:
+        # Delete dependent records first to satisfy foreign keys
+        tables = [
+            "role_assumption_sessions", "mitigation_tasks", "evidence_documents",
+            "audit_observations", "audit_reports", "compliance_gaps", "incidents",
+            "vendor_risk_assessments", "vendors", "generated_policies",
+            "compliance_calendar", "compliance_results", "assessments",
+            "control_assignments", "notifications", "ai_conversations",
+            "audit_logs", "departments", "users"
+        ]
+        for tbl in tables:
+            await session.execute(
+                text(f"delete from {tbl} where institution_id = :inst_id"),
+                {"inst_id": institution_id},
+            )
+
+        res = await session.execute(
+            text("delete from institutions where institution_id = :inst_id returning institution_id, institution_name"),
+            {"inst_id": institution_id},
+        )
+        row = res.mappings().first()
+        if not row:
+            await session.rollback()
+            raise HTTPException(status_code=404, detail="Institution not found")
+
+        await session.commit()
+        return {"institution_id": str(row["institution_id"]), "institution_name": row["institution_name"], "deleted": True}
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=str(exc))
+

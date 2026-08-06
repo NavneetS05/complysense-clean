@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import require_permission
 from app.database import get_db_session
 from app.domain.rbac import PermissionKey, RoleName
+from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
@@ -115,10 +116,35 @@ async def upload_evidence(
             "uploaded_by": user_ctx.user_id,
         },
     )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to save evidence")
+
+    try:
+        if assignment_id:
+            assignment_res = await session.execute(
+                text(
+                    "select assigned_to from control_assignments where assignment_id = :assignment_id and institution_id = :inst_id"
+                ),
+                {"assignment_id": assignment_id, "inst_id": user_ctx.institution_id},
+            )
+            assignment_row = assignment_res.mappings().first()
+            assigned_to = assignment_row["assigned_to"] if assignment_row else None
+            if assigned_to:
+                await NotificationRepository(session).create(
+                    institution_id=str(user_ctx.institution_id),
+                    user_id=str(assigned_to),
+                    title="New evidence uploaded",
+                    message=f"Evidence '{safe_name}' was uploaded for review.",
+                    notification_type="evidence_approved",
+                    related_entity_type="evidence",
+                    related_entity_id=str(row["evidence_id"]),
+                )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
     return {
         "evidence_id": str(row["evidence_id"]),
         "file_name": row["file_name"],

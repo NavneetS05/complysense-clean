@@ -33,6 +33,8 @@ export default function Dashboard() {
         ]);
         setTasks(Array.isArray(taskData) ? taskData : []);
         setEvidence(Array.isArray(evidenceData) ? evidenceData : []);
+      } catch {
+        // errors handled by loading state clearing
       } finally {
         setLoading(false);
       }

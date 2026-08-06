@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, logger
+from app.database import initialize_database_schema
 from app.mongodb import mongo_client
 from app.routers import build_api_router, health
 
@@ -16,6 +17,7 @@ from app.routers import build_api_router, health
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("api_starting")
+    await initialize_database_schema()
     yield
     mongo_client.close()
     logger.info("api_stopped")

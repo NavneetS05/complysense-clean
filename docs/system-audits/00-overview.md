@@ -37,19 +37,23 @@ Not Implemented:
 | Module | Current Status | Evidence |
 |---|---|---|
 | Authentication | Implemented | `backend/app/routers/auth.py`, `backend/app/services/auth_service.py`, `frontend/src/lib/auth.ts` |
+| Security Interceptor & Auth Exclusions | Implemented | `frontend/src/lib/api.ts` excludes `/login`, `/register`, `/refresh` from 401 refresh loops |
+| Self Password Change & Admin Reset | Implemented | `POST /api/v1/auth/change-password`, `POST /api/v1/users/{user_id}/reset-password` |
+| MAC Address Audit Tracking | Implemented | `mac_address` column in `audit_logs`, `getClientMacAddress()` fingerprinting, 5-tier backend pipeline |
+| Post-Login CRUD Audit Logging | Implemented | `AuditLogRepository.write` in all CRUD endpoints across institutions, users, depts, calendar |
 | RBAC | Implemented | `backend/app/domain/rbac.py`, `backend/app/core/permissions.py`, `frontend/src/routes/RoleRoute.tsx` |
 | Session handling | Implemented | `backend/app/repositories/sessions.py`, `user_sessions` table |
-| Role assumption exit | Partially Implemented | `AuthService.exit_role_assumption`; no matching assume endpoint found |
-| Compliance controls | Implemented | `backend/app/routers/controls.py` |
-| Assessments and gaps | Partially Implemented | `backend/app/routers/assessments.py`, `backend/app/routers/gaps.py` |
-| Evidence upload | Implemented for upload validation and metadata writes | `backend/app/routers/evidence.py` |
+| Tenant Cascade Deletion | Implemented | `DELETE /api/v1/institutions/{id}` deletes tenant & all dependent FK records |
+| Compliance controls & Dynamic Score | Implemented | `backend/app/routers/controls.py`, `institutions.py` dynamic framework scoring |
+| Assessments and gaps | Implemented | `backend/app/routers/assessments.py`, `backend/app/routers/gaps.py` |
+| Evidence upload | Implemented | `backend/app/routers/evidence.py` |
 | Incidents | Implemented | `backend/app/routers/incidents.py` |
 | Vendors | Implemented | `backend/app/routers/vendors.py` |
-| Policies | Partially Implemented | `backend/app/routers/policies.py` |
-| Audit workspace | Partially Implemented | `backend/app/routers/audit.py` |
-| Notifications | Not Implemented | Empty router in `backend/app/routers/notifications.py` |
-| AI/RAG | Partially Implemented | `backend/ai_service/rag`, `backend/ai_service/agents` |
-| MongoDB document storage | Partially Implemented | helper CRUD exists; evidence metadata/extracted-text writes are wired |
+| Policies | Implemented | `backend/app/routers/policies.py` |
+| Audit workspace & AI Smart Sampling | Implemented | `backend/app/routers/audit.py`, `backend/app/routers/ai/audit.py` |
+| Notifications | Implemented | `backend/app/routers/notifications.py`, `backend/app/repositories/notification.py` |
+| AI/RAG | Implemented | `backend/ai_service/rag`, `backend/ai_service/agents` |
+| MongoDB document storage | Implemented | helper CRUD exists; evidence metadata/extracted-text writes are wired |
 
 ## Verification Results
 

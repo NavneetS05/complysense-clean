@@ -39,6 +39,8 @@ export default function Dashboard() {
         ]);
         setStats(statsData);
         setRisks(risksData);
+      } catch {
+        // errors handled by loading state clearing
       } finally {
         setLoading(false);
       }

@@ -29,6 +29,12 @@ class CalendarEventCreate(BaseModel):
 class CalendarCompleteToggle(BaseModel):
     is_completed: bool
 
+class CalendarEventUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    due_date: str | None = None
+    is_completed: bool | None = None
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get(
@@ -75,8 +81,21 @@ async def list_calendar_events(
             d["institution_id"] = str(d["institution_id"])
             d["related_entity_id"] = str(d["related_entity_id"]) if d["related_entity_id"] else None
             d["created_by"] = str(d["created_by"]) if d["created_by"] else None
-            d["due_date"] = d["due_date"].isoformat()
-            d["created_at"] = d["created_at"].isoformat()
+            if hasattr(d.get("due_date"), "isoformat"):
+                iso_d = d["due_date"].isoformat()
+            else:
+                iso_d = str(d.get("due_date")) if d.get("due_date") else None
+            if iso_d and not iso_d.endswith("Z") and "+" not in iso_d and "-" not in iso_d[10:]:
+                iso_d += "Z"
+            d["due_date"] = iso_d
+
+            if hasattr(d.get("created_at"), "isoformat"):
+                iso_c = d["created_at"].isoformat()
+            else:
+                iso_c = str(d.get("created_at")) if d.get("created_at") else None
+            if iso_c and not iso_c.endswith("Z") and "+" not in iso_c and "-" not in iso_c[10:]:
+                iso_c += "Z"
+            d["created_at"] = iso_c
             d["description"] = d.get("description")
             out.append(d)
         
@@ -165,18 +184,31 @@ async def create_calendar_event(
                 "related_entity_type": payload.related_entity_type,
                 "related_entity_id": payload.related_entity_id,
                 "title": payload.title,
+                "description": payload.description,
                 "due_date": due_dt,
                 "user_id": user_ctx.user_id,
             },
         )
         row = res.mappings().first()
-        await session.commit()
         if not row:
             raise HTTPException(status_code=500, detail="Failed to insert calendar event")
 
         d = dict(row)
-        d["calendar_id"] = str(d["calendar_id"])
+        cal_id = str(d["calendar_id"])
+        d["calendar_id"] = cal_id
         d["due_date"] = d["due_date"].isoformat()
+
+        from app.repositories.audit import AuditLogRepository
+        await AuditLogRepository(session).write(
+            institution_id=user_ctx.institution_id,
+            user_id=user_ctx.user_id,
+            active_role_id=user_ctx.active_role_id,
+            action_type="event_created",
+            entity_type="calendar_event",
+            entity_id=cal_id,
+            action_details={"title": payload.title},
+        )
+        await session.commit()
         return d
     except Exception as exc:
         await session.rollback()
@@ -227,24 +259,30 @@ async def toggle_event_status(
 )
 async def update_calendar_event(
     event_id: str,
-    payload: CalendarCompleteToggle,
+    payload: CalendarEventUpdate,
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.MANAGE_CALENDAR))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, Any]:
+    updates = payload.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_clauses = ", ".join(f"{col} = :{col}" for col in updates)
+    set_clauses += ", updated_at = now()"
+
     try:
         res = await session.execute(
             text(
-                """
+                f"""
                 update compliance_calendar
-                   set is_completed = :is_completed,
-                       updated_at = now()
+                   set {set_clauses}
                  where calendar_id = :event_id
                    and institution_id = :inst_id
-                returning calendar_id, is_completed
+                returning calendar_id, title, description, due_date, is_completed
                 """
             ),
             {
-                "is_completed": payload.is_completed,
+                **updates,
                 "event_id": event_id,
                 "inst_id": user_ctx.institution_id,
             },
@@ -254,7 +292,13 @@ async def update_calendar_event(
             await session.rollback()
             raise HTTPException(status_code=404, detail="Event not found")
         await session.commit()
-        return {"calendar_id": str(row["calendar_id"]), "is_completed": row["is_completed"]}
+        return {
+            "calendar_id": str(row["calendar_id"]),
+            "title": row["title"],
+            "description": row["description"],
+            "due_date": str(row["due_date"]) if row["due_date"] else None,
+            "is_completed": row["is_completed"],
+        }
     except Exception as exc:
         await session.rollback()
         raise HTTPException(status_code=400, detail=str(exc))

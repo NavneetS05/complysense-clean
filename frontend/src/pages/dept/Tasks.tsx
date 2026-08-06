@@ -31,6 +31,8 @@ export default function Tasks() {
     try {
       const { data } = await api.get("/api/v1/tasks");
       setTasks(Array.isArray(data) ? data : []);
+    } catch {
+      // errors handled by loading state clearing
     } finally {
       setLoading(false);
     }

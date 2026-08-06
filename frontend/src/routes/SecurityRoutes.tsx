@@ -10,6 +10,7 @@ import IncidentDetail from "../pages/security/IncidentDetail";
 import Incidents from "../pages/security/Incidents";
 import NewIncident from "../pages/security/NewIncident";
 import Chat from "../pages/security/Chat";
+import Notifications from "../pages/compliance/Notifications";
 
 export const securityRoutes: RouteObject = {
   path: "/security",
@@ -25,6 +26,7 @@ export const securityRoutes: RouteObject = {
     { path: "incidents/:id", element: <IncidentDetail /> },
     { path: "controls", element: <Controls /> },
     { path: "evidence", element: <Evidence /> },
-    { path: "chat", element: <Chat /> }
+    { path: "chat", element: <Chat /> },
+    { path: "notifications", element: <Notifications /> }
   ]
 };

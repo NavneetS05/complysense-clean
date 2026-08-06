@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_permission
 from app.database import get_db_session
-from app.domain.rbac import PermissionKey
+from app.domain.rbac import PermissionKey, RoleName
+from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -181,10 +182,43 @@ async def create_incident(
             "assigned_to": payload.assigned_to,
         },
     )
-    await session.commit()
     row = res.mappings().first()
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create incident")
+
+    repo = NotificationRepository(session)
+    if payload.assigned_to:
+        await repo.create(
+            institution_id=str(user_ctx.institution_id),
+            user_id=str(payload.assigned_to),
+            title="New incident logged",
+            message=f"An incident '{payload.title.strip()}' has been logged and assigned to you.",
+            notification_type="incident_logged",
+            related_entity_type="incident",
+            related_entity_id=str(row["incident_id"]),
+        )
+
+    await repo.create_for_role(
+        institution_id=str(user_ctx.institution_id),
+        role_name=RoleName.IT_SECURITY_OFFICER.value,
+        title="New incident logged",
+        message=f"An incident '{payload.title.strip()}' requires attention.",
+        notification_type="incident_logged",
+        related_entity_type="incident",
+        related_entity_id=str(row["incident_id"]),
+    )
+    await repo.create_for_role(
+        institution_id=str(user_ctx.institution_id),
+        role_name=RoleName.COMPLIANCE_OFFICER.value,
+        title="New incident logged",
+        message=f"An incident '{payload.title.strip()}' has been logged.",
+        notification_type="incident_logged",
+        related_entity_type="incident",
+        related_entity_id=str(row["incident_id"]),
+    )
+
+    await session.commit()
+
     return {
         "incident_id": str(row["incident_id"]),
         "title": row["title"],

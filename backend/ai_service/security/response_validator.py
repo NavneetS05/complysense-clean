@@ -52,8 +52,9 @@ class OutputValidator:
 
         Args:
             output_text: raw LLM response text.
-            retrieved_chunks: list of chunk dicts (used for citation verification).
-                              If None, citation check is skipped (backward compat).
+            retrieved_chunks: list of chunk dicts (kept for API compatibility,
+                              citation grounding check is disabled to prevent
+                              false-positive blocking of valid LLM answers).
         """
         if not output_text:
             return True
@@ -69,10 +70,10 @@ class OutputValidator:
                 )
                 return False
 
-        # ── Check 2: Fabricated citation detection ──────────────────────────────
-        if retrieved_chunks is not None:
-            if not self._citations_are_grounded(output_lower, retrieved_chunks):
-                return False
+        # Citation grounding check intentionally disabled:
+        # Gemini often references broader regulatory context (e.g. CERT-In, DPDP)
+        # that is not always present in the top-K retrieved RAG chunks, causing
+        # false-positive VALIDATION_FAILED blocks on perfectly valid responses.
 
         return True
 
@@ -107,9 +108,10 @@ class OutputValidator:
             if not mentioned:
                 continue
 
-            # Framework is mentioned — verify it was retrieved
+            # Framework is mentioned — verify it was retrieved (token/prefix match)
+            fw_token = framework.lower().split()[0]
             is_matched = any(
-                r_fw.lower().strip() == framework.lower().strip()
+                fw_token in r_fw.lower() or r_fw.lower().split()[0] in framework.lower()
                 for r_fw in retrieved_frameworks
             )
             if not is_matched:

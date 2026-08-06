@@ -6,11 +6,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from ai_service.utils.logger import StructuredLogger, configure_logging
 from ai_service.routers import register_all_routers
 
 logger = StructuredLogger("ai_service.main")
+
+# Simple middleware to log any exception to stdout immediately (captures dependency errors)
+class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception as exc:
+            from fastapi import HTTPException
+            if isinstance(exc, HTTPException):
+                raise
+            print(f"MIDDLEWARE CAUGHT EXCEPTION: {exc}")
+            import traceback
+
+            traceback.print_exc()
+            raise
 
 # Readiness flag — True once FAISS + BM25 are loaded in memory
 _index_ready: bool = False
@@ -26,7 +42,16 @@ async def runtime_error_handler(_: Request, exc: RuntimeError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
+import traceback
+
+
 async def generic_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    try:
+        tb = traceback.format_exc()
+    except Exception:
+        tb = "<traceback unavailable>"
+    print(f"CRITICAL AI SERVICE EXCEPTION: {exc}\n{tb}", flush=True)
+    logger.error("unhandled_exception", error=str(exc), traceback=tb)
     return JSONResponse(status_code=500, content={"detail": f"Internal error: {exc}"})
 
 
@@ -38,6 +63,7 @@ async def lifespan(app: FastAPI):
 
     # Configure structured logging first
     from ai_service.config import get_ai_settings
+    get_ai_settings.cache_clear()
     settings = get_ai_settings()
     configure_logging(settings.log_level)
 
@@ -115,9 +141,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Ensure middleware catches and logs exceptions (including dependency errors)
+    app.add_middleware(ExceptionLoggingMiddleware)
+
+    # Register application-wide exception handlers from the main backend so
+    # AppError/UnauthorizedError are handled consistently (returns 4xx for auth/perm failures).
+    try:
+        from app.core.exceptions import register_exception_handlers
+        register_exception_handlers(app)
+    except ImportError:
+        pass
+
+    # Keep specific lightweight handlers for common error classes
     app.add_exception_handler(ValueError, value_error_handler)
     app.add_exception_handler(RuntimeError, runtime_error_handler)
-    app.add_exception_handler(Exception, generic_exception_handler)
 
     register_all_routers(app)
 

@@ -7,7 +7,7 @@ import { PageShell } from "../../components/shared/PageShell";
 import { ConfirmModal } from "../../components/shared/ConfirmModal";
 import { useToast } from "../../components/shared/ToastContext";
 import { getApiErrorMessage } from "../../lib/errors";
-import { Plus, Eye, Building2 } from "lucide-react";
+import { Plus, Eye, Building2, Trash2 } from "lucide-react";
 
 interface Institution {
   institution_id: string;
@@ -62,8 +62,9 @@ export default function Tenants() {
   const [form, setForm] = useState<InstitutionFormData>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<Partial<InstitutionFormData>>({});
 
-  // Confirm modal
+  // Confirm modals
   const [confirmTarget, setConfirmTarget] = useState<Institution | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Institution | null>(null);
 
   const fetchInstitutions = useCallback(async () => {
     setLoading(true);
@@ -121,6 +122,18 @@ export default function Tenants() {
       fetchInstitutions();
     } catch {
       toast.error("Failed to update status");
+    }
+  }
+
+  async function handleDeleteInstitution() {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/api/v1/institutions/${deleteTarget.institution_id}`);
+      toast.success(`Institution "${deleteTarget.institution_name}" deleted successfully`);
+      setDeleteTarget(null);
+      fetchInstitutions();
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to delete institution"));
     }
   }
 
@@ -202,7 +215,7 @@ export default function Tenants() {
                     {new Date(inst.created_at).toLocaleDateString("en-IN")}
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <Link to={`/super-admin/tenants/${inst.institution_id}`} className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
                         <Eye size={12} /> View
                       </Link>
@@ -212,6 +225,14 @@ export default function Tenants() {
                         style={{ padding: "4px 10px", fontSize: 12 }}
                       >
                         {inst.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => setDeleteTarget(inst)}
+                        title="Delete Institution"
+                        style={{ padding: "4px 8px", fontSize: 12, color: "#DC2626" }}
+                      >
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>
@@ -295,6 +316,17 @@ export default function Tenants() {
         confirmVariant={confirmTarget?.is_active ? "destructive" : "default"}
         onConfirm={handleToggleStatus}
         onCancel={() => setConfirmTarget(null)}
+      />
+
+      {/* Delete Institution Confirm */}
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Permanently Delete Institution"
+        description={deleteTarget ? `Are you sure you want to permanently delete "${deleteTarget.institution_name}"? This action CANNOT be undone and will erase all users, departments, and compliance records for this institution.` : ""}
+        confirmLabel="Delete Institution"
+        confirmVariant="destructive"
+        onConfirm={handleDeleteInstitution}
+        onCancel={() => setDeleteTarget(null)}
       />
     </PageShell>
   );

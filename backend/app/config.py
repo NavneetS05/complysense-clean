@@ -48,8 +48,8 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
 
-    main_api_url: str = "http://localhost:8000"
-    ai_service_url: str = "http://localhost:8001"
+    main_api_url: str = "http://127.0.0.1:8000"
+    ai_service_url: str = "http://127.0.0.1:8001"
     openai_api_key: str | None = None
 
     # Optional: must match ADMIN_REINDEX_KEY env var on the AI service.
