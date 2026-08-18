@@ -27,7 +27,7 @@ export function useApi<T>(fn: () => Promise<T>, deps: DependencyList = []) {
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    void fetch();
+    void fetch().catch(() => {});
   }, [fetch]);
 
   return { data, loading, error, refetch: fetch };

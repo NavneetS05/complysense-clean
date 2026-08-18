@@ -22,7 +22,10 @@ api.interceptors.request.use((config) => {
 
 // ─── Response interceptor — silent token refresh on 401 ────────────────────
 let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+let refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: any) => void;
+}> = [];
 
 api.interceptors.response.use(
   (response) => response,
@@ -39,10 +42,15 @@ api.interceptors.response.use(
       original._retry = true;
 
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push((token) => {
-            original.headers.Authorization = `Bearer ${token}`;
-            resolve(api(original));
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve: (token) => {
+              original.headers.Authorization = `Bearer ${token}`;
+              resolve(api(original));
+            },
+            reject: (err) => {
+              reject(err);
+            },
           });
         });
       }
@@ -58,11 +66,13 @@ api.interceptors.response.use(
         setSession(access_token, newUser);
         persistSession(newUser);
 
-        refreshQueue.forEach((cb) => cb(access_token));
+        refreshQueue.forEach((item) => item.resolve(access_token));
         refreshQueue = [];
         original.headers.Authorization = `Bearer ${access_token}`;
         return api(original);
-      } catch {
+      } catch (refreshErr) {
+        refreshQueue.forEach((item) => item.reject(refreshErr));
+        refreshQueue = [];
         clearSession();
         clearSessionStorage();
         window.location.href = "/login";

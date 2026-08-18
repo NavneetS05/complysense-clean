@@ -140,16 +140,30 @@ async def list_assessment_responses(
     user_ctx: Annotated[UserContext, Depends(require_permission(PermissionKey.VIEW_ASSESSMENTS))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[dict[str, Any]]:
-    query = "select response_id, question_id, control_id, response_value, score_value, answered_by, created_at from assessment_responses where assessment_id = :assessment_id and institution_id = :inst_id"
+    query = """
+        select r.response_id, r.question_id, r.control_id, r.response_value, r.score_value, r.answered_by, r.created_at
+        from assessment_responses r
+        join assessments a on a.assessment_id = r.assessment_id
+        where r.assessment_id = :assessment_id and a.institution_id = :inst_id
+    """
     res = await session.execute(text(query), {"assessment_id": assessment_id, "inst_id": user_ctx.institution_id})
     rows = res.mappings().all()
+
+    def _safe_float(val: Any) -> float | None:
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
+
     return [
         {
             "response_id": str(r["response_id"]),
             "question_id": r["question_id"],
             "control_id": r["control_id"],
             "response_value": r["response_value"],
-            "score_value": float(r["score_value"]) if r["score_value"] is not None else None,
+            "score_value": _safe_float(r["score_value"]),
             "answered_by": str(r["answered_by"]) if r["answered_by"] else None,
             "created_at": r["created_at"].isoformat() if r["created_at"] else None,
         }

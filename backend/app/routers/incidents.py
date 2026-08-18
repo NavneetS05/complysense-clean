@@ -283,7 +283,7 @@ async def get_dashboard_stats(
         "pending_cert_in": pending_cert_in,
         "last_incident_created": _serialize_datetime(last_created),
         "timeline": timeline,
-        "compliance_rate": round(100 - (pending_cert_in * 5), 1) if open_incidents else 100.0,
+        "compliance_rate": max(0.0, min(100.0, round(100 - (pending_cert_in * 5), 1))) if open_incidents else 100.0,
     }
 
 

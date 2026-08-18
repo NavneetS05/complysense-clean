@@ -138,9 +138,8 @@ export default function Workspace() {
       setPriorityEvidenceIds(ids);
       toast.success(`Smart sample calculated — ${ids.length} items highlighted.`);
 
-      // Auto-select the first control containing a priority evidence file
       const firstPriorityEvidence = evidenceItems.find((ev) => ids.includes(ev.evidence_id));
-      if (firstPriorityEvidence) {
+      if (firstPriorityEvidence && firstPriorityEvidence.control_id) {
         setSelectedControlId(firstPriorityEvidence.control_id);
       }
     } catch (err: unknown) {

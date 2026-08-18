@@ -6,6 +6,8 @@ import { Info, ArrowLeft, Send } from "lucide-react";
 import { api } from "../../lib/api";
 import { PageShell } from "../../components/shared/PageShell";
 import Loading from "../../components/shared/Loading";
+import { useToast } from "../../components/shared/ToastContext";
+import { getApiErrorMessage } from "../../lib/errors";
 
 type TaskItem = {
   task_id: string;
@@ -19,12 +21,14 @@ type TaskItem = {
 export default function TaskWizard() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [task, setTask] = useState<TaskItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function load() {
+      if (!id) return;
       setLoading(true);
       try {
         const { data } = await api.get(`/api/v1/tasks/${id}`);
@@ -42,7 +46,10 @@ export default function TaskWizard() {
     setSubmitting(true);
     try {
       await api.post(`/api/v1/tasks/${id}/submit`);
+      toast.success("Task submitted successfully");
       navigate("/dept/tasks");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to submit task"));
     } finally {
       setSubmitting(false);
     }

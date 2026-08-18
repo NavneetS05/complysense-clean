@@ -15,7 +15,17 @@ from app.domain.rbac import PermissionKey, RoleName
 from app.repositories.notification import NotificationRepository
 from app.schemas.auth import UserContext
 
+from datetime import date, datetime
+
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _serialize_date(value: Any) -> str | None:
+    if not value:
+        return None
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return str(value)
 
 
 class CreateTaskPayload(BaseModel):
@@ -71,7 +81,7 @@ async def list_tasks(
             "task_title": row["task_title"],
             "priority": row["priority"],
             "task_status": row["task_status"],
-            "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+            "due_date": _serialize_date(row["due_date"]),
             "assigned_to": str(row["assigned_to"]) if row["assigned_to"] else None,
             "department_id": str(row["department_id"]) if row["department_id"] else None,
             "assignment_id": str(row["assignment_id"]) if row["assignment_id"] else None,
@@ -101,7 +111,7 @@ async def get_task(
         "task_title": row["task_title"],
         "priority": row["priority"],
         "task_status": row["task_status"],
-        "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+        "due_date": _serialize_date(row["due_date"]),
         "assigned_to": str(row["assigned_to"]) if row["assigned_to"] else None,
         "department_id": str(row["department_id"]) if row["department_id"] else None,
         "assignment_id": str(row["assignment_id"]) if row["assignment_id"] else None,
@@ -159,7 +169,7 @@ async def create_task(
         "task_title": row["task_title"],
         "priority": row["priority"],
         "task_status": row["task_status"],
-        "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+        "due_date": _serialize_date(row["due_date"]),
     }
 
 

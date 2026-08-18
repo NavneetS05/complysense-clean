@@ -186,10 +186,9 @@ export default function Dashboard() {
           if (match) rawResponse = match[1].trim();
         }
         if (!rawResponse.startsWith("{") && !rawResponse.startsWith("[")) {
-          const firstBrace = Math.min(
-            ...[rawResponse.indexOf("{"), rawResponse.indexOf("[")].filter((i) => i >= 0)
-          );
-          if (firstBrace >= 0) {
+          const validIndices = [rawResponse.indexOf("{"), rawResponse.indexOf("[")].filter((i) => i >= 0);
+          if (validIndices.length > 0) {
+            const firstBrace = Math.min(...validIndices);
             const lastBrace = Math.max(rawResponse.lastIndexOf("}"), rawResponse.lastIndexOf("]"));
             if (lastBrace > firstBrace) {
               rawResponse = rawResponse.slice(firstBrace, lastBrace + 1);
